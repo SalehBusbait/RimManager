@@ -160,14 +160,18 @@ public sealed class IntegrationsPresenterTests
 
     /// <summary>
     /// Windows writes quoted PATH entries often enough that an unstripped quote would
-    /// make git undiscoverable on exactly the platform most users are on.
+    /// make git undiscoverable on exactly the platform most users are on. The fixture
+    /// path carries the space that quoting exists for but no drive letter: FindOnPath
+    /// splits on the platform's own separator, and on Linux and macOS that separator
+    /// is the colon inside "C:" — a Windows-shaped entry is unsplittable there by
+    /// design, and this test runs on all three platforms.
     /// </summary>
     [Fact]
     public void Quoted_path_entries_are_unwrapped()
     {
-        var target = Path("C:/Program Files/Git/cmd", "git.exe");
+        var target = Path("/Program Files/Git/cmd", "git.exe");
 
-        GitService.FindOnPath("\"C:/Program Files/Git/cmd\"", p => p == target)
+        GitService.FindOnPath("\"/Program Files/Git/cmd\"", p => p == target)
             .Should().Be(target);
     }
 
