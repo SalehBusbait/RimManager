@@ -44,8 +44,6 @@ Windows, macOS and Linux.
 
 - **Share your list in one file.** Send a friend a single small file, or a Steam collection, and they get your whole load order.
 
-- **Your game stays safe.** RimManager writes exactly one file, backs it up first, and never touches your mods, saves or settings.
-
 ## Installation
 
 Download the archive for the target platform from the
