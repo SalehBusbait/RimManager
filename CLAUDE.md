@@ -68,6 +68,9 @@ Data flows one direction. The CLI and the App are two thin shells over the same 
   follow the theme.
 - **Bump `SqliteModCache.CacheVersion` whenever scan semantics change.** The cache keys on
   `About.xml`'s mtime, which neither a Ludeon file nor a `git clone` ever changes.
+- **Commit messages are short, imperative and professional, with no trailers.** Reasoning
+  that needs to survive belongs in the tree, not in history — the repository is public
+  and its history has been squashed once already.
 
 ## Traps that have already cost this project time
 
