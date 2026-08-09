@@ -7,11 +7,16 @@
 # just makes that the rule rather than an accident.
 * text=auto
 
-# NOT eol=crlf on the ModsConfig fixture, deliberately, in case anyone is tempted:
-# RimWorld's file is CRLF, but the fixture is only ever PARSED by the tests, never
-# byte-compared. The byte-exact guard (ModsConfigWriterTests) builds its expected
-# string from explicit \r\n escapes in C# source, so it is independent of how any
-# file on disk is stored — which is what makes it correct on Linux and macOS too.
+# RimWorld writes ModsConfig.xml with CRLF, and this fixture is a real one. It must
+# reach the working tree with its CRLF intact on EVERY platform, because
+# WritePathTests.Writer_reproduces_the_real_mods_config_byte_for_byte compares the
+# writer's output against these exact bytes — the guard on the one file this
+# application writes into someone's game.
+#
+# Without this line the fixture normalises to LF and that test fails on Linux and
+# macOS while passing on Windows, where core.autocrlf hides the difference. That is
+# exactly what the first cross-platform CI run found: 217 missing CR bytes.
+fixtures/config/ModsConfig.xml text eol=crlf
 
 *.cs        text diff=csharp
 *.csproj    text
