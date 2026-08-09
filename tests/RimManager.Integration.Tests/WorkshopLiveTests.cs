@@ -21,6 +21,8 @@ public sealed class WorkshopLiveTests
     [SkippableFact]
     public async Task Fetches_real_metadata_for_a_known_workshop_item()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(15));
         var client = new SteamWorkshopClient(fetcher);
 
@@ -37,6 +39,8 @@ public sealed class WorkshopLiveTests
     [SkippableFact]
     public async Task Unknown_id_comes_back_as_not_found_over_the_wire()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(15));
         var client = new SteamWorkshopClient(fetcher);
 

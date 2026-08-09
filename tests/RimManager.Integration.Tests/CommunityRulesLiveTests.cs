@@ -16,6 +16,8 @@ public sealed class CommunityRulesLiveTests
     [SkippableFact]
     public async Task Downloads_and_parses_the_live_rules_database()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(20));
         var client = new CommunityRulesClient(fetcher);
 

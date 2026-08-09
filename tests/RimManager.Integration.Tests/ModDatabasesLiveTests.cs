@@ -18,6 +18,8 @@ public sealed class ModDatabasesLiveTests
     [SkippableFact]
     public async Task Downloads_gunzips_and_parses_the_live_replacements_database()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(20));
 
         ReplacementDatabase db;
@@ -41,6 +43,8 @@ public sealed class ModDatabasesLiveTests
     [SkippableFact]
     public async Task Downloads_and_parses_the_live_known_good_list_for_1_6()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(20));
 
         KnownGoodDatabase db;
@@ -62,6 +66,8 @@ public sealed class ModDatabasesLiveTests
     [SkippableFact]
     public async Task A_game_version_with_no_list_returns_empty_over_the_live_wire()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(20));
 
         KnownGoodDatabase db;

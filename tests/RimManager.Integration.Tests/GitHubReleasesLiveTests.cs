@@ -19,6 +19,8 @@ public sealed class GitHubReleasesLiveTests
     [SkippableFact]
     public async Task Fetches_the_latest_release_of_a_known_repo()
     {
+        LiveEndpoints.SkipInCi();
+
         using var fetcher = new HttpClientFetcher(TimeSpan.FromSeconds(15));
         var client = new GitHubReleasesClient(fetcher);
 
