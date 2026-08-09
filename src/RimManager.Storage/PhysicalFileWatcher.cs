@@ -41,12 +41,14 @@ public sealed class PhysicalFileWatcher : IFileWatcher
         private readonly FileSystemWatcher _watcher;
         private readonly Timer _debounce;
         private readonly Action _onChanged;
+        private readonly string _file;
         private readonly Lock _gate = new();
         private bool _disposed;
 
         public Subscription(string directory, string file, Action onChanged)
         {
             _onChanged = onChanged;
+            _file = file;
             _debounce = new Timer(Fire, null, Timeout.Infinite, Timeout.Infinite);
 
             _watcher = new FileSystemWatcher(directory, file)
@@ -71,7 +73,18 @@ public sealed class PhysicalFileWatcher : IFileWatcher
             _watcher.EnableRaisingEvents = true;
         }
 
-        private void OnAny(object sender, FileSystemEventArgs e) => Bump();
+        // The name is checked HERE, not only by the FileSystemWatcher filter: on
+        // macOS the platform's events are directory-granular and can leak past the
+        // filter, so a write to any sibling in the config folder — and RimWorld's
+        // config folder holds every Mod_*.xml settings file — woke this watcher.
+        // Caught by CI on macos-latest; Windows and Linux honour the filter.
+        private void OnAny(object sender, FileSystemEventArgs e)
+        {
+            if (Matches(e.Name) || (e is RenamedEventArgs r && Matches(r.OldName))) Bump();
+        }
+
+        private bool Matches(string? name) =>
+            string.Equals(Path.GetFileName(name), _file, StringComparison.OrdinalIgnoreCase);
 
         private void Bump()
         {

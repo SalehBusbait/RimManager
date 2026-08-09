@@ -23,9 +23,10 @@ Releases are tag-triggered: `git tag v1.0.0-beta.2 && git push origin v1.0.0-bet
 builds four runtime identifiers plus the Windows installer and publishes them. The
 workflow fails deliberately if the tag and `<Version>` in `Directory.Build.props`
 disagree — and if `docs/releases/v<version>.md` is missing. **Release notes are written
-before every release**, in that file, Keep-a-Changelog style (Added / Fixed / Changed /
-Removed, player-facing wording, a compare link at the end); the release job publishes
-them verbatim.
+before every release**, in that file, from `docs/releases/TEMPLATE.md` (owner's call,
+beta.2: beautified — a Highlights blurb, emoji section headings, bold-lead bullets, a
+screenshot when anything visible changed, a Downloads routing line, the compare link).
+Player-facing wording throughout; the release job publishes the file verbatim.
 
 Kill leftover instances with `Get-Process -Name RimManager | Stop-Process -Force` before
 rebuilding; the exe locks otherwise.
