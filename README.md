@@ -8,7 +8,7 @@ A desktop mod manager for **RimWorld**, heavily inspired by [RimSort](https://gi
 Deterministic load-order sorting, assembly-level conflict detection and shareable modlists.<br>
 Windows, macOS and Linux.
 
-**[Releases](https://github.com/SalehBusbait/RimManager/releases) | [Issues](https://github.com/SalehBusbait/RimManager/issues) | [Support](#support)**
+**[Releases](https://github.com/SalehBusbait/RimManager/releases) | [Documentation](docs/README.md) | [Issues](https://github.com/SalehBusbait/RimManager/issues) | [Support](#support)**
 
 <a href="https://github.com/SalehBusbait/RimManager/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/SalehBusbait/RimManager?include_prereleases&style=flat&label=release&color=4c8dd9"></a>
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-4c8dd9?style=flat"></a>
