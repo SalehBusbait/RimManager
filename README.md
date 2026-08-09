@@ -28,23 +28,23 @@ Windows, macOS and Linux.
 
 ## Features
 
-- **Load-order sorting.** A rule graph is assembled from each mod's `About.xml` and the community rules database, then sorted by a deterministic, idempotent topological pass. A genuine contradiction is preserved as a cycle rather than silently collapsed: the sort names the loop and the single rule it dropped in order to complete, and that decision can be pinned to the modlist so every subsequent sort resolves it identically.
+- **One click, a working load order.** Hundreds of mods sorted into an order that works, the same way every time. When two mods genuinely disagree, RimManager tells you instead of quietly picking a side.
 
-- **Conflict detection at the assembly level.** RimManager reads the compiled assemblies of every mod in the active load order with a metadata reader — mod code is never executed or loaded — and reports which mods declare Harmony patches against the same method. Def overrides, XML patch operations and texture replacements are resolved in the same pass, with the winner determined from the current order rather than from the scan.
+- **Catch conflicts before your colony does.** It looks inside each mod and finds the ones changing the same part of the game — the kind of clash that crashes a save three hours in — and shows you exactly which mod wins.
 
-- **Validation before the game runs.** Missing and inactive dependencies, absent DLC, mods declared incompatible with one another, load-order violations and unsupported game versions are reported as a categorised list. A resolver dialog offers the corresponding fix for each dependency.
+- **Know what's missing before you press Play.** Forgotten dependencies, disabled DLC, mods that refuse to work together, wrong game version — all listed up front, with fixes offered where a fix exists.
 
-- **Modlists with append-only history.** Load orders are switched as named modlists, each able to retain its own mod settings. Applying and sorting record snapshots that can be named and returned to; restoring appends a new state rather than rewinding an existing one. Hand edits are undoable.
+- **Never lose a load order that worked.** Every sort and every apply is saved as a snapshot you can name and return to. If an update breaks your game, go back to yesterday's list.
 
-- **Drift detection.** When RimWorld or another tool alters the load order externally, RimManager reports the divergence and offers to review it as a diff, adopt it as a new modlist, or replace the current one.
+- **One modlist per playthrough.** Keep a list for each colony — each with its own mod settings — and switch between them. If RimWorld or another tool changes your order behind RimManager's back, you'll know.
 
-- **Organisation.** Separators group the load order into collapsible sections; tags are colour-coded from a palette index rather than a fixed hex value, so they follow the active theme. Both can be filtered on.
+- **Big lists, kept manageable.** Group mods under collapsible coloured separators, tag them, and filter down to what you're looking for.
 
-- **Workshop integration.** Update detection compares the installed publish time recorded in Steam's own manifest against the live value, so it is exact rather than inferred from file timestamps. Downloads are requested from the Steam client, which leaves subscriptions untouched.
+- **Updates on your terms.** See exactly which Workshop mods have updates — and how old your versions are — before anything downloads. Steam does the downloading; your subscriptions are never touched.
 
-- **Sharing.** A list can be exported as a `.rwlist` document, as a Workshop item folder ready to upload, or as a private Steam collection created on the user's own account. All three import, as does a collection URL.
+- **Share your list in one file.** Send a friend a single small file, or a Steam collection, and they get your whole load order.
 
-- **A single file written.** RimManager writes only `ModsConfig.xml`, reproducing RimWorld's format byte for byte, after a timestamped backup, and declines to write while the game is running.
+- **Your game stays safe.** RimManager writes exactly one file, backs it up first, and never touches your mods, saves or settings.
 
 ## Installation
 
