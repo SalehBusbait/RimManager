@@ -135,10 +135,11 @@ public static class ShortcutTable
     // was a second route to everything the menus already carry.
     public const string FocusSearch = "nav.search";
     public const string ShortcutSheet = "help.shortcuts";
-    // help.getting-started and help.app-updates are GONE (UI audit): the first had no
-    // content to open until N12's documentation exists, and the second promised the
-    // self-updater R7 explicitly decided against — a menu row is a promise, and both
-    // rows had spent their whole lives breaking theirs.
+    // help.app-updates was removed in the UI audit because it promised a self-updater
+    // that did not exist — a menu row is a promise. The feature shipped in beta.3, so
+    // the row returned with it. (help.getting-started stays gone; the docs live on
+    // GitHub, and Report an issue already points there.)
+    public const string CheckAppUpdates = "help.app-updates";
     public const string RerunFirstRun = "help.first-run";
     public const string OpenLogFolder = "help.log-folder";
     public const string CopyDiagnostics = "help.diagnostics";
@@ -209,6 +210,7 @@ public static class ShortcutTable
         new(SyncRules, "Sync community rules", null, KeyMod.None, ""),
         new(RuleEditor, "Rule editor…", null, KeyMod.None, ""),
         new(ResetLayout, "Reset layout", null, KeyMod.None, ""),
+        new(CheckAppUpdates, "Check for updates…", null, KeyMod.None, ""),
         new(RerunFirstRun, "Re-run first-time setup…", null, KeyMod.None, ""),
         new(OpenLogFolder, "Open log folder", null, KeyMod.None, ""),
         new(CopyDiagnostics, "Copy diagnostics bundle", null, KeyMod.None, ""),

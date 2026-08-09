@@ -165,6 +165,13 @@ public interface IAppPreferences : INotifyPropertyChanged
     bool RefuseApplyWithBlockingWarnings { get; set; }
 
     /// <summary>
+    /// Install RimManager's own updates on launch without asking (beta.3). Off by
+    /// default: the launch check runs either way; this decides whether it acts or
+    /// just points at Help ▸ Check for updates.
+    /// </summary>
+    bool AutoInstallUpdates { get; set; }
+
+    /// <summary>
     /// The log's level floor, indexing <see cref="LogLevels.Choices"/>. Info by default —
     /// Debug and Trace are for reproducing something, not for living at.
     /// </summary>

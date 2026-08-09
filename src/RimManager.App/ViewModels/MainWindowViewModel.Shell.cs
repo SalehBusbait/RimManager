@@ -25,6 +25,7 @@ using RimManager.Core.Undo;
 using RimManager.Core.Validation;
 using RimManager.Core.Workshop;
 using RimManager.Core.Writing;
+using RimManager.Integrations.Http;
 using RimManager.Integrations.SteamCmd;
 using RimManager.Integrations.Steamworks;
 using RimManager.Storage;
@@ -497,6 +498,7 @@ public sealed partial class MainWindowViewModel
         ShortcutTable.ManageModlists => OpenSettingsCommand,
         ShortcutTable.Quit => QuitCommand,
         ShortcutTable.ShortcutSheet => ShowShortcutSheetCommand,
+        ShortcutTable.CheckAppUpdates => CheckAppUpdatesCommand,
         ShortcutTable.RerunFirstRun => RerunFirstRunCommand,
         ShortcutTable.About => ShowAboutCommand,
         ShortcutTable.ApplyAndLaunch => ApplyAndLaunchCommand,
@@ -686,6 +688,83 @@ public sealed partial class MainWindowViewModel
         {
             StatusText = "Could not open the browser.";
             _log.Warn(LogSubsystem.Ui, $"Could not open the issues page: {ex}");
+        }
+    }
+
+    // --- the app's own updates (beta.3) --------------------------------------
+    // Constructed lazily and only here: the service is pure side-effect (network,
+    // temp files, a process launch), so nothing else should be tempted to reach it.
+    private AppUpdateService? _appUpdates;
+    private AppUpdateService AppUpdates =>
+        _appUpdates ??= new AppUpdateService(new HttpClientFetcher());
+
+    /// <summary>
+    /// The launch-time check: quiet, unawaited by the loader, offline-silent. With
+    /// the auto-install preference ON and an installer-managed copy, it applies the
+    /// update immediately; otherwise it says one status line and leaves the decision
+    /// in the Help menu.
+    /// </summary>
+    private async Task CheckForAppUpdateOnLaunchAsync()
+    {
+        var advice = await AppUpdates.CheckAsync();
+        if (advice is null) return;
+
+        if (AutoInstallUpdates && advice.Installer is not null && AppUpdates.CanInstallInPlace)
+        {
+            StatusText = $"Updating to RimManager {advice.Version}…";
+            if (await AppUpdates.DownloadAndRunInstallerAsync(advice))
+            {
+                Quit();
+                return;
+            }
+        }
+
+        StatusText = $"RimManager {advice.Version} is available — Help ▸ Check for updates…";
+        _log.Info(LogSubsystem.Ui, $"Update available: {advice.Version}");
+    }
+
+    /// <summary>Help ▸ Check for updates… — the manual path, with a verdict either way.</summary>
+    [RelayCommand]
+    private async Task CheckAppUpdates()
+    {
+        if (Confirm is null) return;
+
+        StatusText = "Checking for updates…";
+        var advice = await AppUpdates.CheckAsync();
+
+        if (advice is null)
+        {
+            StatusText = $"You are up to date — RimManager {AppUpdateService.CurrentVersion?.Split('+')[0]}.";
+            return;
+        }
+
+        var canInstall = advice.Installer is not null && AppUpdates.CanInstallInPlace;
+        var result = await Confirm(new ConfirmRequest(
+            $"Update to RimManager {advice.Version}?",
+            canInstall
+                ? "Downloads the update and installs it in place. RimManager closes while "
+                  + "the installer runs; your modlists, tags and settings are untouched."
+                : "Opens the release page in your browser, where the download for this "
+                  + "platform is listed.",
+            Verb: canInstall ? "Update now" : "Open the release page"));
+        if (!result.Confirmed)
+        {
+            StatusText = $"RimManager {advice.Version} is available — Help ▸ Check for updates…";
+            return;
+        }
+
+        if (canInstall)
+        {
+            StatusText = $"Downloading RimManager {advice.Version}…";
+            var started = await AppUpdates.DownloadAndRunInstallerAsync(
+                advice, new Progress<double>(p =>
+                    StatusText = $"Downloading RimManager {advice.Version}… {p:P0}"));
+            if (started) { Quit(); return; }
+            StatusText = "The download did not complete — nothing was changed.";
+        }
+        else
+        {
+            AppUpdates.OpenReleasePage(advice);
         }
     }
 

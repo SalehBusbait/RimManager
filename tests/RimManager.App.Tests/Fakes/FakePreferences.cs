@@ -81,6 +81,7 @@ public sealed class FakePreferences : IAppPreferences
     public bool ShowGitDirtyOnRows { get; set; } = true;
     public bool FetchReposOnStartup { get; set; }
     public bool CheckModUpdatesOnStartup { get; set; }
+    public bool AutoInstallUpdates { get; set; }
     public bool IsComfortableDensity { get; set; }
     public bool ShowTagStripes { get; set; } = true;
     public bool ZebraStriping { get; set; }

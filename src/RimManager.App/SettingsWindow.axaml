@@ -1233,6 +1233,12 @@
               <TextBlock Classes="note" Margin="39,0,0,0"
                          Text="On by default: a missing dependency means the game fails to load, and finding that out from RimWorld's own error screen is far worse than being stopped here." />
             </StackPanel>
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Install RimManager updates automatically"
+                            IsChecked="{Binding Prefs.AutoInstallUpdates, Mode=TwoWay}" />
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="RimManager checks for a new version on every launch either way. With this on, an update downloads and installs itself; RimManager closes while the installer runs and your modlists, tags and settings are untouched. With it off, the check only reports — Help ▸ Check for updates does the rest." />
+            </StackPanel>
           </StackPanel>
 
           <StackPanel Spacing="10">

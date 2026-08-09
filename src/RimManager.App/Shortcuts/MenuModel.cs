@@ -165,13 +165,14 @@ public static class MenuModel
             MenuRow.Item(ShortcutTable.RuleEditor),
         ]),
 
-        // "Getting started" and "Check for updates…" are GONE (UI audit): the first
-        // had nothing to open until N12's documentation exists, and the second
-        // promised the self-updater R7 decided against. Rows return when their
-        // features do.
+        // "Check for updates…" returned in beta.3, with the self-updater it once
+        // falsely promised. ("Getting started" stays gone — the documentation lives
+        // on GitHub.)
         new("Help",
         [
             MenuRow.Item(ShortcutTable.ShortcutSheet),
+            MenuRow.Separator,
+            MenuRow.Item(ShortcutTable.CheckAppUpdates),
             MenuRow.Item(ShortcutTable.RerunFirstRun),
             MenuRow.Separator,
             MenuRow.Item(ShortcutTable.OpenLogFolder),

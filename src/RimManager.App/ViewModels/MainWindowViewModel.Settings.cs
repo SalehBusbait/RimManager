@@ -117,6 +117,7 @@ public sealed partial class MainWindowViewModel
             LaunchExtraArguments = s.LaunchExtraArguments;
             ConfirmBeforeApply = s.ConfirmBeforeApply;
             RefuseApplyWithBlockingWarnings = s.RefuseApplyWithBlockingWarnings;
+            AutoInstallUpdates = s.AutoInstallUpdates;
             LogLevelIndex = LogLevels.Clamp(s.LogLevelIndex);
             KeepSnapshots = s.KeepSnapshots;
             CommunityRulesUrl = s.CommunityRulesUrl;
@@ -161,6 +162,7 @@ public sealed partial class MainWindowViewModel
             LaunchExtraArguments = LaunchExtraArguments,
             ConfirmBeforeApply = ConfirmBeforeApply,
             RefuseApplyWithBlockingWarnings = RefuseApplyWithBlockingWarnings,
+            AutoInstallUpdates = AutoInstallUpdates,
             LogLevelIndex = LogLevelIndex,
             KeepSnapshots = KeepSnapshots,
             CommunityRulesUrl = CommunityRulesUrl,
@@ -199,6 +201,7 @@ public sealed partial class MainWindowViewModel
         nameof(ShowGitDirtyOnRows), nameof(FetchReposOnStartup), nameof(CheckModUpdatesOnStartup),
         nameof(LaunchCommand), nameof(LaunchExtraArguments),
         nameof(ConfirmBeforeApply), nameof(RefuseApplyWithBlockingWarnings),
+        nameof(AutoInstallUpdates),
         nameof(LogLevelIndex), nameof(KeepSnapshots),
         nameof(CommunityRulesUrl), nameof(ReplacementsUrl), nameof(KnownGoodBaseUrl),
     ];
@@ -276,6 +279,13 @@ public sealed partial class MainWindowViewModel
 
     /// <summary>Refuse to Apply while blocking warnings exist. On by default.</summary>
     [ObservableProperty] private bool _refuseApplyWithBlockingWarnings = true;
+
+    /// <summary>
+    /// Install app updates on launch without asking. Off by default. The quiet check
+    /// runs on every launch regardless; this decides whether its verdict becomes an
+    /// action or just a status line pointing at Help ▸ Check for updates.
+    /// </summary>
+    [ObservableProperty] private bool _autoInstallUpdates;
 
     /// <summary>Unprotected snapshots kept per profile; named and pinned are exempt.</summary>
     [ObservableProperty] private int _keepSnapshots = 100;

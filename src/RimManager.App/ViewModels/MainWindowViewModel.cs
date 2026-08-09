@@ -1027,6 +1027,11 @@ public sealed partial class MainWindowViewModel
             {
                 _databaseSyncStarted = true;
                 _ = SyncDatabasesAsync(announce: false);
+
+                // The app's own update check rides the same once-per-session,
+                // unawaited line. Quiet by default; the auto-install preference is
+                // the only thing that turns it into an action.
+                _ = CheckForAppUpdateOnLaunchAsync();
             }
 
             // Seeded once, never overwritten: the default depends on whether this is a

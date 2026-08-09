@@ -57,6 +57,7 @@ public sealed class AppSettingsRepositoryTests : IDisposable
             AutoSortAfterActivate = true,
             ShowGitDirtyOnRows = false,
             FetchReposOnStartup = true,
+            AutoInstallUpdates = true,
             // N7c/N7d: the database toggles and custom source URLs.
             UseCommunityRules = false,
             UseReplacementsDatabase = false,

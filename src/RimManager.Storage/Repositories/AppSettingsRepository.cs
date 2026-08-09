@@ -70,6 +70,10 @@ public sealed record AppSettings
     /// <summary>Check the Workshop for mod updates when an instance loads (2j step 4).</summary>
     public bool CheckModUpdatesOnStartup { get; init; }
 
+    /// <summary>Install RimManager's own updates on launch without asking (beta.3).
+    /// Off by default: the launch check runs either way and only reports.</summary>
+    public bool AutoInstallUpdates { get; init; }
+
     /// <summary>Empty means "never chosen" — the default depends on the instance, so it is
     /// filled in once one is loaded rather than baked in here.</summary>
     public string LaunchCommand { get; init; } = string.Empty;
