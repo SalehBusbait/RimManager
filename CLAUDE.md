@@ -5,7 +5,7 @@ Guidance for Claude Code working in this repository.
 RimManager is a cross-platform desktop mod manager for **RimWorld**: MO2's organisational
 model (separators, tags, shareable exports) over a deterministic sorting engine, with
 assembly-level conflict detection. Avalonia 12 on .NET 10. Current version
-`1.0.0-beta.1`, MIT licensed, published at https://github.com/SalehBusbait/RimManager.
+`1.0.0-beta.2`, MIT licensed, published at https://github.com/SalehBusbait/RimManager.
 
 ## Commands
 
@@ -19,7 +19,7 @@ dotnet test RimManager.slnx --filter "FullyQualifiedName~ModSorter"
 dotnet run --project src/RimManager.App      # the GUI
 ```
 
-Releases are tag-triggered: `git tag v1.0.0-beta.1 && git push origin v1.0.0-beta.1`
+Releases are tag-triggered: `git tag v1.0.0-beta.2 && git push origin v1.0.0-beta.2`
 builds four runtime identifiers and publishes them. The workflow fails deliberately if the
 tag and `<Version>` in `Directory.Build.props` disagree.
 
