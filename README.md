@@ -50,9 +50,9 @@ Download the archive for the target platform from the
 [releases page](https://github.com/SalehBusbait/RimManager/releases) and extract it. The
 .NET runtime is included, so no separate installation or launcher is required.
 
-| Platform | Archive | Notes |
+| Platform | Download | Notes |
 |---|---|---|
-| Windows | `win-x64` (`.zip`) | Run `RimManager.exe`. SmartScreen will report an unsigned application; choose **More info**, then **Run anyway**. |
+| Windows | `RimManager-Setup-*.exe` | Run the installer. RimManager is added to the Start menu and to Apps & Features, from where it uninstalls cleanly — with the option to keep or remove your data. SmartScreen will report an unsigned application; choose **More info**, then **Run anyway**. A portable `win-x64` `.zip` is also provided. |
 | macOS | `osx-arm64` or `osx-x64` (`.tar.gz`) | Run `./RimManager`. Gatekeeper blocks unsigned binaries on first launch — permit it under **System Settings ▸ Privacy & Security**, or run `xattr -dr com.apple.quarantine RimManager`. |
 | Linux | `linux-x64` (`.tar.gz`) | Run `./RimManager`. |
 

@@ -152,9 +152,54 @@ jobs:
           name: ${{ matrix.rid }}
           path: dist/*
 
+  # The Windows installer runs on a Windows runner because Inno Setup does. It
+  # produces a Setup exe that registers RimManager in Apps & Features with a real
+  # uninstaller; the portable zip from the build matrix remains for people who
+  # prefer no installation at all.
+  installer:
+    name: windows installer
+    needs: [verify, test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish src/RimManager.App -c Release -r win-x64 \
+            --self-contained true -o publish
+          cp LICENSE THIRD-PARTY-NOTICES.md README.md publish/
+          find publish -name '*.pdb' ! -name 'RimManager*.pdb' -delete
+          test -f publish/RimManager.exe \
+            || { echo "::error::The publish has no RimManager executable."; exit 1; }
+
+      - name: Compile installer
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          numeric="${VERSION%%-*}"
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+            "-DAppVersion=$VERSION" \
+            "-DNumericVersion=$numeric" \
+            "-DPublishDir=$(cygpath -w "$PWD/publish")" \
+            -Odist packaging/windows/RimManager.iss
+          ls -lh dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-win-x64
+          path: dist/*
+
   release:
     name: publish the release
-    needs: [verify, build]
+    needs: [verify, build, installer]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
