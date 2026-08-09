@@ -54,6 +54,20 @@ jobs:
             *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
+      # Release notes are written BEFORE the release, in the repository, per
+      # version. GitHub's --generate-notes builds its text from merged pull
+      # requests, and this repository commits directly to main — auto-generation
+      # would publish an empty page. Failing here, before any build minutes are
+      # spent, is what turns "write the notes first" from a habit into a rule.
+      - name: Check the release notes exist
+        if: github.event_name == 'push'
+        run: |
+          notes="docs/releases/${GITHUB_REF#refs/tags/}.md"
+          if [ ! -s "$notes" ]; then
+            echo "::error::No release notes at $notes — write them, commit, and re-tag."
+            exit 1
+          fi
+
   test:
     name: test before shipping
     runs-on: ubuntu-latest
@@ -220,7 +234,11 @@ jobs:
           if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then
             flags="--prerelease"
           fi
+          # --notes-file, not --generate-notes: generation reads merged PRs and
+          # this repository has none, so the hand-written notes are the release
+          # page. Re-add --generate-notes alongside the file if outside
+          # contributors arrive — it appends the New Contributors section.
           gh release create "${GITHUB_REF#refs/tags/}" dist/* \
             --title "RimManager $VERSION" \
-            --generate-notes \
+            --notes-file "docs/releases/${GITHUB_REF#refs/tags/}.md" \
             $flags

@@ -20,8 +20,12 @@ dotnet run --project src/RimManager.App      # the GUI
 ```
 
 Releases are tag-triggered: `git tag v1.0.0-beta.2 && git push origin v1.0.0-beta.2`
-builds four runtime identifiers and publishes them. The workflow fails deliberately if the
-tag and `<Version>` in `Directory.Build.props` disagree.
+builds four runtime identifiers plus the Windows installer and publishes them. The
+workflow fails deliberately if the tag and `<Version>` in `Directory.Build.props`
+disagree — and if `docs/releases/v<version>.md` is missing. **Release notes are written
+before every release**, in that file, Keep-a-Changelog style (Added / Fixed / Changed /
+Removed, player-facing wording, a compare link at the end); the release job publishes
+them verbatim.
 
 Kill leftover instances with `Get-Process -Name RimManager | Stop-Process -Force` before
 rebuilding; the exe locks otherwise.
