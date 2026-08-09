@@ -1,7 +1,9 @@
 <!-- Copy to v<version>.md and fill in. Delete empty sections and these comments.
      The release workflow publishes this file VERBATIM as the release page, and
      refuses to release without it. GitHub renders full Markdown here: headings,
-     bold, emoji, images and <details> all work. -->
+     bold, emoji, images and <details> all work — but EVERY newline is a hard
+     line break, so keep each paragraph and each bullet on ONE source line or
+     the page breaks mid-sentence. -->
 
 ## ✨ Highlights
 

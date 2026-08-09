@@ -26,7 +26,7 @@
          AssemblyVersion and FileVersion cannot carry a suffix and the SDK drops it for
          them (both become 1.0.0.0). Only InformationalVersion keeps the whole string,
          which is exactly the one every user-facing surface reads. -->
-    <Version>1.0.0-beta.2</Version>
+    <Version>1.0.0-beta.3</Version>
 
     <!-- N12 · the licence, declared where the build can carry it rather than only in a
          file at the root. MIT: the permissive case won on the argument that nobody
