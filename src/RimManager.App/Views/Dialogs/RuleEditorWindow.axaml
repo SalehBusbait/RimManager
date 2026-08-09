@@ -72,16 +72,25 @@
                                IsChecked="{Binding !NewRuleLoadsAfter, Mode=TwoWay}" />
                 </StackPanel>
               </Border>
-              <ComboBox Grid.Column="1" Margin="8,0" HorizontalAlignment="Stretch"
-                        AutomationProperties.Name="Mod to relate to"
-                        ItemsSource="{Binding Candidates}"
-                        SelectedItem="{Binding NewRuleOther, Mode=TwoWay}">
-                <ComboBox.ItemTemplate>
+              <!-- Searchable, not a plain ComboBox: the candidate list is every
+                   installed mod (~560 on a real library), and a dropdown that long
+                   with no filter made reaching anything past the alphabet's middle
+                   genuinely hard — found the hard way while driving it. Type a few
+                   letters; the match list narrows as you go. -->
+              <AutoCompleteBox Grid.Column="1" Margin="8,0" HorizontalAlignment="Stretch"
+                               AutomationProperties.Name="Mod to relate to"
+                               PlaceholderText="type a mod name"
+                               FilterMode="Contains" MinimumPrefixLength="1"
+                               MaxDropDownHeight="240"
+                               ItemsSource="{Binding Candidates}"
+                               ValueMemberBinding="{ReflectionBinding Name}"
+                               SelectedItem="{Binding NewRuleOther, Mode=TwoWay}">
+                <AutoCompleteBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:RuleModViewModel">
                     <TextBlock Text="{Binding Name}" />
                   </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
+                </AutoCompleteBox.ItemTemplate>
+              </AutoCompleteBox>
               <Button Grid.Column="2" Classes="accent" Content="Add"
                       Command="{Binding AddRuleCommand}" />
             </Grid>
