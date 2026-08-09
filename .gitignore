@@ -1,0 +1,43 @@
+## .NET / Visual Studio
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+.vscode/
+*.rsuser
+artifacts/
+publish/
+
+## Rider
+.idea/
+
+## Test / coverage
+[Tt]est[Rr]esults/
+*.coverage
+*.trx
+
+## OS cruft
+.DS_Store
+Thumbs.db
+
+## Spikes are throwaway build output only; keep the source
+spikes/**/bin/
+spikes/**/obj/
+
+## Local logs
+logs/
+*.log
+
+## docs/ holds end-user documentation and nothing else.
+##
+## Everything that came before it - the design handoffs, the phase plans, the UI
+## audits, the original spec - lives on in docs/archive/ on the author's machine.
+## It is kept, not deleted: it is the reasoning behind most of the decisions in
+## this codebase. It is simply not what someone arriving at the repository needs.
+##
+## docs/AI planning/ is where working plans are drafted. Same rule: local only.
+docs/archive/
+docs/AI planning/

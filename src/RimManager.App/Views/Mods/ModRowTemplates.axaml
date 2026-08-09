@@ -1,0 +1,915 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="using:RimManager.App.ViewModels"
+                    xmlns:mods="using:RimManager.App.Views.Mods"
+                    xmlns:dm="using:RimManager.Core.Domain"
+                    xmlns:ctl="using:RimManager.App.Views.Controls"
+                    xmlns:sys="using:System"
+                    xmlns:adc="using:Avalonia.Data.Converters">
+  <!--
+    Shared row DataTemplates, so the two panes and (later) the command palette all
+    render a mod the same way — AVALONIA_GUIDE.md §1: "ModRowTemplates.axaml is a
+    shared ResourceDictionary holding the row DataTemplates so the two panes and
+    the palette can reuse them."
+
+    Row height is {DynamicResource RmRowHeight} everywhere: one resource write
+    (20 <-> 26) re-lays out every list in the app. Never a literal height, and
+    never Height="Auto" — fixed rows are what make virtualization exact.
+
+    Built against 1f: index · tag stripe · source badge · name · packageId ·
+    version · one status glyph.
+
+    The 6-slot CDPTSL content-flags column was REMOVED in N1 (NEXT_PLAN §0a). Six
+    letters of jargon in the densest part of the window is not readable at a glance
+    even once you know the key. The facts are real and were NOT deleted with it: mod
+    info spells them out as words ("C# code · XML patches · Textures"), which is where
+    you are standing when you care, and ContentFlags in Core is untouched.
+  -->
+
+  <!-- ========================== source badge ============================= -->
+  <!--
+    N1 · the SRC column is an icon per source, not a letter (design non-negotiable
+    #12 wants real geometries wherever a mark is drawn). Defined ONCE and used by both
+    row templates AND mod info's source pill: this is six visibility bindings and six
+    geometries, and the status slot below shows what happens when a block like this
+    gets written out twice — the two copies are only identical until someone edits one.
+
+    Typed to IModSourceBadge rather than to a view model, which is what lets mod info
+    share it: ModRowViewModel and ModDetailViewModel both implement it. Mod info drew
+    a LETTER ("D · DLC") until the interface existed, so one source had two marks.
+
+    Six PathIcons in a Panel, exactly as the status slot picks among its four, rather
+    than a converter or a geometry-valued view-model property: a converter hands back a
+    value frozen at conversion time, and a geometry property would drag Avalonia
+    resources into a view model that is deliberately Avalonia-free.
+
+    Nothing here sets Foreground locally. The tint is a style setter keyed off the
+    same bound class as the background (Controls.axaml, Border.srcBadge.srcX PathIcon)
+    — a local value on the element would outrank it, which is the single trap that has
+    cost this project three shipped bugs.
+  -->
+  <DataTemplate x:Key="SourceBadgeTemplate" x:DataType="vm:IModSourceBadge">
+    <Border Classes="srcBadge"
+            Classes.srcCore="{Binding IsCoreSource}"
+            Classes.srcDlc="{Binding IsDlcSource}"
+            Classes.srcWorkshop="{Binding IsWorkshopSource}"
+            Classes.srcLocal="{Binding IsLocalSource}"
+            Classes.srcGit="{Binding IsGitSource}"
+            ToolTip.Tip="{Binding Source}">
+      <Panel>
+        <PathIcon Data="{StaticResource RmIconSourceCore}" Width="9" Height="9"
+                  IsVisible="{Binding IsCoreSource}" />
+        <PathIcon Data="{StaticResource RmIconSourceDlc}" Width="9" Height="9"
+                  IsVisible="{Binding IsDlcSource}" />
+        <PathIcon Data="{StaticResource RmIconSourceWorkshop}" Width="9" Height="9"
+                  IsVisible="{Binding IsWorkshopSource}" />
+        <PathIcon Data="{StaticResource RmIconSourceLocal}" Width="9" Height="9"
+                  IsVisible="{Binding IsLocalSource}" />
+        <PathIcon Data="{StaticResource RmIconGitBranch}" Width="9" Height="9"
+                  IsVisible="{Binding IsGitSource}" />
+      </Panel>
+    </Border>
+  </DataTemplate>
+
+  <!-- ======================= mod row (active pane) ======================= -->
+  <!--
+    Columns are the 1f compact set, 8px horizontal padding:
+      index 28 · stripe 3 · badge 14 · name * · packageId 150 · ver 52 · status 16
+    Fixed widths on every column but the name are what let the eye compare
+    vertically down a 200-row list. The 53px the flags column gave up goes to NAME,
+    which is the column that was short of room.
+  -->
+  <DataTemplate x:Key="ModRowTemplate" x:DataType="vm:ModRowViewModel">
+    <!-- Drag state rides bound classes on this Border (dim to 35% while dragging,
+         accent tint for 1.2s after a drop). Bound classes work on an element;
+         Style setters named "Classes.x" do not.
+
+         conflictLoss / conflictWin are N6's selection-relative highlights: while a
+         mod is selected, red = the selected mod wins against this row, green = this
+         row wins against it. -->
+    <Border Classes="row" Classes.dragSource="{Binding IsDragSource}"
+            Classes.justMoved="{Binding IsJustMoved}"
+            Classes.conflictLoss="{Binding IsOverwrittenBySelected}"
+            Classes.conflictWin="{Binding OverwritesSelected}"
+            Classes.harmonyShared="{Binding SharesHarmonyWithSelected}">
+    <!-- The relationship paints carry a RIGHT-edge second channel (v2 §4A.2):
+         solid ok/bad for win/lose, DASHED harmony for shares-a-target — dashed
+         because the relationship is linked-not-ranked and names no winner. A Line
+         because an Avalonia Border cannot dash; the Panel clips its overshoot.
+
+         The Panel's Height is LOAD-BEARING: the Line measures at its geometry's
+         64px, and ClipToBounds clips paint, not measure — without the fixed
+         height, every harmony-sharing row ballooned to 64px the moment a mod
+         with shared targets was selected. -->
+    <Panel ClipToBounds="True" Height="{DynamicResource RmRowHeight}">
+    <Rectangle Width="2" HorizontalAlignment="Right"
+               Fill="{DynamicResource RmSuccessBrush}"
+               IsVisible="{Binding OverwritesSelected}" />
+    <Rectangle Width="2" HorizontalAlignment="Right"
+               Fill="{DynamicResource RmDangerBrush}"
+               IsVisible="{Binding IsOverwrittenBySelected}" />
+    <Line StartPoint="1,0" EndPoint="1,64" Width="2" HorizontalAlignment="Right"
+          Stroke="{DynamicResource RmHarmonyBrush}" StrokeThickness="2"
+          StrokeDashArray="1.5,1.5"
+          IsVisible="{Binding SharesHarmonyWithSelected}" />
+    <!--
+      28,7,14,7,*,7,150,7,52,7,20,7,16 at every width except below 900 (2k),
+      where packageId and version collapse to zero and a `›` appears instead. The
+      active list's columns are FIXED — it is the load order, not a table (#3) — so
+      this is not a picker; it is the one width the breakpoint takes away.
+
+      The 3px tag stripe column is GONE (v2 §4A.1): tags ride the pill zone inside
+      the NAME cell now, every tag represented.
+
+      Column 10 is the ⚡ conflict badge (N6) — its own slot, NOT the status slot:
+      a conflict is not a warning and a row can carry both at once. 20px because it
+      holds the bolt AND the direction mark beside it. Active rows only; the
+      inactive template has no such column because an unloaded mod overrides nothing.
+    -->
+    <Grid Height="{DynamicResource RmRowHeight}" Margin="8,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="28" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="14" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RowPackageIdWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RowVersionWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="20" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="16" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RowChevronWidth}" />
+      </Grid.ColumnDefinitions>
+
+
+      <!-- The "who wins" number. Renumbers live during a drag. -->
+      <TextBlock Grid.Column="0" Text="{Binding Index}" Classes="idx" />
+
+      <!-- Icon AND tint, never tint alone; the tooltip names the source in words. -->
+      <ContentControl Grid.Column="2" Content="{Binding}"
+                      ContentTemplate="{StaticResource SourceBadgeTemplate}"
+                      VerticalAlignment="Center" />
+
+      <!-- NAME plus the tag-pill zone (v2 §4A.1). The zone's budget is WHAT IS LEFT
+           after the name keeps its 110px minimum — not a fixed cap. A flat
+           MaxWidth="132" made the degradation ladder fire on free space: a short
+           name on a wide window collapsed to dots and "+2" with half the row empty,
+           because the cap cannot see the row. Pills are INERT here — editing stays
+           at Mod Info's chips — and the tooltip lists every tag. -->
+      <mods:NamePillPanel Grid.Column="4">
+        <!-- Core, DLC and pinned mods render at 600: they anchor the order. -->
+        <TextBlock Text="{Binding Name}" Classes="pri" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"
+                   Classes.anchor="{Binding IsAnchor}" />
+        <mods:TagPillStrip Margin="6,0,0,0" VerticalAlignment="Stretch"
+                           Pills="{Binding Pills}" ToolTip.Tip="{Binding TagTip}"
+                           IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowTagStripes}" />
+      </mods:NamePillPanel>
+
+      <TextBlock Grid.Column="6" Text="{Binding PackageIdText}" Classes="mono ter"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding PackageIdText}" />
+
+      <!-- For the 1.2s after a drop this column shows "was 114" instead of the
+           version, so the move can be confirmed without hunting for the row again
+           (3a §4). -->
+      <TextBlock Grid.Column="8" Text="{Binding Version}" Classes="mono ter"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                 IsVisible="{Binding !IsJustMoved}" />
+      <TextBlock Grid.Column="8" Text="{Binding PreviousIndexText}" Classes="mono"
+                 Foreground="{DynamicResource RmAccentTextBrush}"
+                 VerticalAlignment="Center" IsVisible="{Binding IsJustMoved}" />
+
+      <!-- The conflict badge (N6, §0f, owner's two-channel system): the MARK beside
+           the bolt carries the override story — + this row's contested content
+           survives (green), − it is discarded (red), both as a green + stacked over
+           a red −, each half keeping its singular colour. The BOLT's colour carries
+           the harmony bit: yellow = overrides only, blue = harmony is involved (the
+           mark says whether overrides are too), no bolt = no conflict at all.
+           Win/lose grammar never touches harmony — every patch runs (§0f).
+
+           A Button, because clicking it opens the per-mod conflict window (N6b).
+           IsHitTestVisible, not IsEnabled, for the status slot's reason: a disabled
+           Fluent button dims its content. -->
+      <Button Grid.Column="10" Classes="affordance" Padding="0"
+              VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+              IsHitTestVisible="{Binding HasConflicts}"
+              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenModConflictsCommand}"
+              CommandParameter="{Binding}"
+              ToolTip.Tip="{Binding ConflictTip}"
+              AutomationProperties.Name="Show this mod's conflicts">
+        <Grid ColumnDefinitions="10,2,6" VerticalAlignment="Center" HorizontalAlignment="Center"
+              IsVisible="{Binding HasConflicts}">
+          <Panel Grid.Column="0" VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                      Foreground="{DynamicResource RmWarningBrush}"
+                      IsVisible="{Binding IsOverrideOnlyConflict}" />
+            <!-- RmHarmonyBrush, not accent (UI audit): the legend one column over
+                 teaches BLUE bolt = Harmony involved, and under Drop Pods the accent
+                 is amber - the row was contradicting its own legend. -->
+            <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                      Foreground="{DynamicResource RmHarmonyBrush}"
+                      IsVisible="{Binding HasHarmonyConflict}" />
+          </Panel>
+          <Panel Grid.Column="2" VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource RmIconOverwriting}" Width="6" Height="6"
+                      Foreground="{DynamicResource RmSuccessBrush}"
+                      IsVisible="{Binding IsOverwritingOnly}" />
+            <PathIcon Data="{StaticResource RmIconOverwritten}" Width="6" Height="6"
+                      Foreground="{DynamicResource RmDangerBrush}"
+                      IsVisible="{Binding IsOverwrittenOnly}" />
+            <StackPanel IsVisible="{Binding IsMixedConflict}" Spacing="1"
+                        VerticalAlignment="Center">
+              <PathIcon Data="{StaticResource RmIconOverwriting}" Width="5" Height="5"
+                        Foreground="{DynamicResource RmSuccessBrush}" />
+              <PathIcon Data="{StaticResource RmIconOverwritten}" Width="5" Height="5"
+                        Foreground="{DynamicResource RmDangerBrush}" />
+            </StackPanel>
+          </Panel>
+        </Grid>
+      </Button>
+
+      <!-- ONE status slot, strict precedence: broken -> warning -> update -> git
+           dirty -> blank. A row never shows two. Each carries a tooltip, because
+           colour is never the only signal — and since N2 that tooltip NAMES the
+           warnings rather than announcing that some exist, which is what the coloured
+           mark beside it already said.
+
+           A Button, because clicking it opens the Warnings dock on the warning it
+           stands for (UI-4). Hit-testing is off when nothing in that dock names the
+           mod: this glyph is also raised for an update and for a dirty working tree,
+           and a click landing on a tab that does not mention your mod is worse than a
+           click that does nothing.
+
+           IsHitTestVisible rather than IsEnabled, because a disabled Fluent button
+           dims its content — which would render the most urgent rows the faintest.
+           Padding 0 so the 11px glyph stays centred in the 16px column the header
+           legends; Button.affordance's own 4,0 would shift it off. -->
+      <Button Grid.Column="12" Classes="affordance" Padding="0"
+              VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+              IsHitTestVisible="{Binding HasWarnings}"
+              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RevealWarningsForCommand}"
+              CommandParameter="{Binding}"
+              ToolTip.Tip="{Binding StatusTip}"
+              AutomationProperties.Name="Show this mod's warnings">
+        <Panel>
+          <PathIcon Data="{StaticResource RmIconError}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmDangerBrush}" IsVisible="{Binding IsBroken}" />
+          <PathIcon Data="{StaticResource RmIconWarning}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmWarningBrush}" IsVisible="{Binding IsWarning}" />
+          <PathIcon Data="{StaticResource RmIconUpdate}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmAccentBrush}" IsVisible="{Binding HasUpdate}" />
+          <PathIcon Data="{StaticResource RmIconGitBranch}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmAccentBrush}" IsVisible="{Binding IsGitDirty}" />
+        </Panel>
+      </Button>
+
+      <!--
+        2k · the `›` that opens the info sheet whenever mod info is an overlay — both
+        breakpoints, not only the segmented one. Its COLUMN is what appears and
+        disappears, so the button needs no IsVisible of its own, and must not have one:
+        a local value would outrank any style trying to manage it.
+
+        Always rendered at text.tertiary and only brightened, never hover-revealed
+        (#11): on a 20px row a chevron that appears under the pointer is unfindable.
+      -->
+      <Button Grid.Column="13" Classes="affordance" Padding="0"
+              VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenInfoDrawerCommand}"
+              AutomationProperties.Name="Show details for this mod">
+        <PathIcon Data="{StaticResource RmIconChevronRight}" Width="9" Height="9" />
+      </Button>
+    </Grid>
+    </Panel>
+    </Border>
+  </DataTemplate>
+
+  <!-- ============== mod row, narrow (inactive pane: no index) ============= -->
+  <!-- An inactive mod has no position, so it gets no index column (1a). -->
+  <DataTemplate x:Key="InactiveModRowTemplate" x:DataType="vm:ModRowViewModel">
+    <Border Classes="row" Classes.dragSource="{Binding IsDragSource}"
+            Classes.justMoved="{Binding IsJustMoved}">
+    <!--
+      N1 · these widths come from the PANE's measured width, not from Columns ▾ (which
+      is gone) and not from the window's. The splitter is user-draggable, so the window
+      says nothing about how much room this list has; widening the pane reveals VER,
+      then AUTHOR, then PACKAGEID, cheapest first, and never below a 150px NAME.
+
+      Column-for-column identical to the header above the list — the guard in
+      AdaptiveLayoutMarkupTests pins that, because a legend one column out of step with
+      its data is invisible until you read a value against the wrong heading.
+
+      A hidden column collapses to zero rather than merely blanking its content, or
+      "gone" would read as "empty". The ACTIVE list is not configurable at all: it is
+      the load order, not a table (#3).
+    -->
+    <Grid Height="{DynamicResource RmRowHeight}" Margin="8,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SourceColumnWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PackageIdColumnWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AuthorColumnWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).VersionColumnWidth}" />
+        <ColumnDefinition Width="7" />
+        <ColumnDefinition Width="16" />
+        <ColumnDefinition Width="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RowChevronWidth}" />
+      </Grid.ColumnDefinitions>
+      <ContentControl Grid.Column="0" Content="{Binding}"
+                      ContentTemplate="{StaticResource SourceBadgeTemplate}"
+                      VerticalAlignment="Center" />
+      <!-- NAME plus the pill zone, the active row's grammar (v2 §4A.1) — the 3px
+           stripe column is gone here too. -->
+      <mods:NamePillPanel Grid.Column="2">
+        <TextBlock Text="{Binding Name}" Classes="pri" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"
+                   Classes.anchor="{Binding IsAnchor}" />
+        <mods:TagPillStrip Margin="6,0,0,0" VerticalAlignment="Stretch"
+                           Pills="{Binding Pills}" ToolTip.Tip="{Binding TagTip}"
+                           IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowTagStripes}" />
+      </mods:NamePillPanel>
+      <TextBlock Grid.Column="4" Text="{Binding PackageIdText}" Classes="mono ter"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding PackageIdText}" />
+      <TextBlock Grid.Column="6" Text="{Binding Author}" Classes="small ter"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding Author}" />
+      <TextBlock Grid.Column="8" Text="{Binding Version}" Classes="mono ter"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="10" Classes="affordance" Padding="0"
+              VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+              IsHitTestVisible="{Binding HasWarnings}"
+              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RevealWarningsForCommand}"
+              CommandParameter="{Binding}"
+              ToolTip.Tip="{Binding StatusTip}"
+              AutomationProperties.Name="Show this mod's warnings">
+        <Panel>
+          <PathIcon Data="{StaticResource RmIconError}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmDangerBrush}" IsVisible="{Binding IsBroken}" />
+          <PathIcon Data="{StaticResource RmIconWarning}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmWarningBrush}" IsVisible="{Binding IsWarning}" />
+          <PathIcon Data="{StaticResource RmIconUpdate}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmAccentBrush}" IsVisible="{Binding HasUpdate}" />
+          <PathIcon Data="{StaticResource RmIconGitBranch}" Width="11" Height="11"
+                    Foreground="{DynamicResource RmAccentBrush}" IsVisible="{Binding IsGitDirty}" />
+        </Panel>
+      </Button>
+
+      <!-- 2k · the same `›` as the active row; its COLUMN is what appears. -->
+      <Button Grid.Column="12" Classes="affordance" Padding="0"
+              VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenInfoDrawerCommand}"
+              AutomationProperties.Name="Show details for this mod">
+        <PathIcon Data="{StaticResource RmIconChevronRight}" Width="9" Height="9" />
+      </Button>
+    </Grid>
+    </Border>
+  </DataTemplate>
+
+  <!-- ============================= separator ============================= -->
+  <!--
+    Always 22px regardless of density (1f). The 4px colour bar is full-bleed, floor
+    to ceiling — the only place a separator colour goes edge to edge, and what makes
+    group boundaries readable while scrolling fast.
+  -->
+  <DataTemplate x:Key="SeparatorRowTemplate" x:DataType="vm:SeparatorRowViewModel">
+    <Border Classes="separatorRow">
+      <!-- Right-click and the ⋮ button carry the SAME five items. Written out twice
+           because a MenuFlyout cannot be shared between two parents and this project
+           has already been bitten by a data-driven menu setting Header as a local
+           value. SeparatorMenuTests compares the two blocks, so the copy that gets
+           edited alone fails the build rather than drifting quietly - which is how
+           Apply-and-launch ended up live in one place and dead in another. -->
+      <Border.ContextMenu>
+        <ContextMenu>
+          <MenuItem Header="Rename" InputGesture="F2" Command="{Binding BeginRenameCommand}" />
+          <!-- Rows are in Palette's own index order, and each parameter IS that index.
+               They used to read Blue Green Violet Amber Red Slate against 0..5, so
+               three of six painted the wrong hue: Violet gave amber, Amber gave red,
+               Red gave violet. SeparatorMenuTests compared the two copies only to each
+               other, so both being wrong agreed perfectly — SeparatorColourTests now
+               pins each label against Palette. -->
+          <MenuItem Header="Colour">
+            <MenuItem Header="Blue" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>0</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+            <MenuItem Header="Green" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>1</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+            <MenuItem Header="Amber" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>2</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+            <MenuItem Header="Red" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>3</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+            <MenuItem Header="Violet" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>4</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+            <MenuItem Header="Slate" Command="{Binding ChooseColorCommand}">
+              <MenuItem.CommandParameter><sys:Int32>5</sys:Int32></MenuItem.CommandParameter>
+            </MenuItem>
+          </MenuItem>
+          <MenuItem Header="{Binding CollapseMenuLabel}" Command="{Binding ToggleCollapseCommand}" />
+          <Separator />
+          <MenuItem Header="Delete separator" Command="{Binding DeleteCommand}"
+                    ToolTip.Tip="Removes the header. The mods under it stay exactly where they are." />
+        </ContextMenu>
+      </Border.ContextMenu>
+      <!-- Column 5 is the ✓ that commits a rename. Auto, so it costs nothing at all
+           when the row is not being edited. -->
+      <Grid ColumnDefinitions="4,8,12,6,Auto,Auto,8,Auto,10,*,Auto">
+
+        <Border Grid.Column="0" Classes="paletted"
+                Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+
+        <Button Grid.Column="2" Command="{Binding ToggleCollapseCommand}" Classes="affordance"
+                Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Collapse group">
+          <PathIcon Width="9" Height="9"
+                    Data="{StaticResource RmIconChevronDown}"
+                    IsVisible="{Binding !Collapsed}" />
+        </Button>
+        <Button Grid.Column="2" Command="{Binding ToggleCollapseCommand}" Classes="affordance"
+                Padding="0" VerticalAlignment="Center" IsVisible="{Binding Collapsed}"
+                AutomationProperties.Name="Expand group">
+          <PathIcon Data="{StaticResource RmIconChevronRight}" Width="9" Height="9" />
+        </Button>
+
+        <!-- 10px/700 upper-case, tinted with the separator's own colour (1f).
+             Displayed as a TextBlock and only swapped for a TextBox while renaming:
+             a TextBox cannot render caps without fighting the user's typing, and its
+             taller line box sits the text lower than the chevron and count beside
+             it, which reads as a misaligned row. -->
+        <TextBlock Grid.Column="4" Text="{Binding DisplayName}" Classes="separatorLabel palettedText"
+                   IsVisible="{Binding IsNotEditing}"
+                   Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                   Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                   Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+        <TextBox Grid.Column="4" AutomationProperties.Name="Separator name"
+                 ctl:EditFocus.FocusOnShow="True"
+                 Text="{Binding Name, Mode=TwoWay}" BorderThickness="0"
+                 Background="Transparent" Padding="0" MinWidth="80" MinHeight="0"
+                 VerticalAlignment="Center" VerticalContentAlignment="Center"
+                 FontWeight="Bold" FontSize="{DynamicResource RmFontSizeMono}"
+                 IsVisible="{Binding IsEditing}" PlaceholderText="SEPARATOR">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding EndRenameCommand}" />
+            <!-- Escape RESTORES. It used to run EndRename, so the key that means
+                 "abandon this" committed it instead - the name binding pushes on
+                 every keystroke, so by the time Escape arrived there was nothing
+                 left to abandon. -->
+            <KeyBinding Gesture="Escape" Command="{Binding CancelRenameCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+
+        <!-- The edit affordance: a 1px rule under the field in the separator's own
+             colour. Reuses Border.paletted, which sets Background - a 1px border
+             filled with the hue IS the underline, so this needs no new style.
+             Without it the box was transparent and borderless, and nothing on the
+             row said it had become editable. -->
+        <Border Grid.Column="4" Height="1" VerticalAlignment="Bottom" Margin="0,0,0,2"
+                IsVisible="{Binding IsEditing}" Classes="paletted"
+                Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+
+        <!-- Commit. Enter does it too, but a key nobody is told about is not an
+             affordance - and the check is tinted with the separator's own colour, so
+             the control that ends the edit is visibly part of the thing being edited. -->
+        <Button Grid.Column="5" Classes="affordance" Padding="4,0" Margin="6,0,0,0"
+                VerticalAlignment="Stretch" IsVisible="{Binding IsEditing}"
+                Command="{Binding EndRenameCommand}"
+                AutomationProperties.Name="Save separator name"
+                ToolTip.Tip="Save this name — Enter. Escape restores the old one.">
+          <PathIcon Data="{StaticResource RmIconCheck}" Width="10" Height="10"
+                    Classes="palettedText"
+                    Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                    Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                    Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+        </Button>
+
+        <!-- The count is ALWAYS shown, so a collapsed group still reports its size. -->
+        <TextBlock Grid.Column="7" Classes="micro" VerticalAlignment="Center"
+                   Text="{Binding CountText}" />
+
+        <!-- A 1px rule fills the remaining width, then the ⋮ menu. -->
+        <Border Grid.Column="9" Height="1" VerticalAlignment="Center" Classes="divider" />
+
+        <Button Grid.Column="10" Classes="affordance" Padding="6,0" VerticalAlignment="Stretch"
+                AutomationProperties.Name="Group menu">
+          <PathIcon Data="{StaticResource RmIconKebab}" Width="11" Height="11" />
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="Rename" InputGesture="F2" Command="{Binding BeginRenameCommand}" />
+              <MenuItem Header="Colour">
+                <MenuItem Header="Blue" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>0</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+                <MenuItem Header="Green" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>1</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+                <MenuItem Header="Amber" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>2</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+                <MenuItem Header="Red" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>3</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+                <MenuItem Header="Violet" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>4</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+                <MenuItem Header="Slate" Command="{Binding ChooseColorCommand}">
+                  <MenuItem.CommandParameter><sys:Int32>5</sys:Int32></MenuItem.CommandParameter>
+                </MenuItem>
+              </MenuItem>
+              <MenuItem Header="{Binding CollapseMenuLabel}" Command="{Binding ToggleCollapseCommand}" />
+              <Separator />
+              <MenuItem Header="Delete separator" Command="{Binding DeleteCommand}"
+                        ToolTip.Tip="Removes the header. The mods under it stay exactly where they are." />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
+    </Border>
+  </DataTemplate>
+
+  <!-- =========================== mod info body =========================== -->
+  <!--
+    1a §2-9, in this FIXED order: preview · identity · tag chips · facts grid ·
+    dependencies · notes · description · actions. Fixed because the pane is read
+    while reordering — the eye needs the same thing in the same place every time,
+    not a layout that reflows with whatever data happens to exist.
+  -->
+  <DataTemplate x:Key="ModDetailTemplate" DataType="vm:ModDetailViewModel">
+    <ScrollViewer>
+      <StackPanel>
+
+        <!-- 2 · preview, FIT into a 344x160 band (O21). COLLAPSES TO ZERO when the mod
+             has none — no grey placeholder box. -->
+        <!-- Two nested conditions rather than one converter: the preference collapses
+             the slot entirely, and within it "no preview" collapses it too — the
+             design is explicit that this goes to zero height, never to a grey box. -->
+        <!-- Uniform, not UniformToFill: the whole image is shown rather than an
+             excerpt of it. It used to crop, and since 540 of 546 real previews are
+             TALLER than this band, cropping is what most of them got — the art was
+             sliced through the middle. Fitting letterboxes instead, onto the pane's own
+             background, which costs some empty space on a square preview and shows the
+             author's actual artwork on every one.
+             Still a BUTTON (N8): full size is a click away, and the tooltip carries the
+             real pixel dimensions. Nothing hover-revealed (#11), and hover changes
+             nothing: an opaque image leaves a hover background nowhere to show. -->
+        <Border IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowPreviewImages}">
+        <Button Classes="previewImage" Height="{DynamicResource RmModInfoPreviewHeight}"
+                IsVisible="{Binding HasPreview}"
+                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenPreviewImageCommand}"
+                ToolTip.Tip="{Binding PreviewTooltip}"
+                AutomationProperties.Name="View the full preview image">
+          <Image Source="{Binding Preview}" Stretch="Uniform" />
+        </Button>
+        </Border>
+
+        <!-- 3 · identity -->
+        <Grid ColumnDefinitions="*,Auto" Margin="10,10,10,0">
+          <StackPanel Grid.Column="0" Spacing="2">
+            <TextBlock Text="{Binding Name}" Classes="title" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PackageId}" Classes="mono ter"
+                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PackageId}" />
+          </StackPanel>
+          <!-- 1a §3 draws this as mark + word. The mark is now the SAME badge the list
+               rows carry — it used to be a letter, so one source had two spellings and
+               nothing tied the "D" in here to the icon out there. -->
+          <Border Grid.Column="1" Height="18" CornerRadius="9" Padding="5,0,8,0" Margin="8,0,0,0"
+                  VerticalAlignment="Top" Background="{DynamicResource RmBackgroundAltBrush}">
+            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+              <ContentControl Content="{Binding}"
+                              ContentTemplate="{StaticResource SourceBadgeTemplate}"
+                              VerticalAlignment="Center" />
+              <TextBlock Text="{Binding SourceLabel}" Classes="mono ter" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- 4 · tags. The full chips live HERE (1e §4): the rows carry the
+             compact pill zone (v2 §4A.1 — the 3px stripe is retired), and these
+             named chips are what stop row colour being the sole carrier of
+             meaning. -->
+        <StackPanel Margin="10,10,10,0" Spacing="4">
+          <TextBlock Text="TAGS" Classes="micro" />
+          <WrapPanel Orientation="Horizontal">
+            <!-- O14 · favourite, as a pill in the same row as the tags. It leads them
+                 because it is the mod's own mark rather than one of a set, and it is
+                 present only when set — an empty favourite pill would be a control,
+                 and the header star is already the control. Clicking clears it, which
+                 is the × grammar the tag chips beside it use. -->
+            <Border Classes="favPill" Margin="0,0,4,4"
+                    IsVisible="{Binding Favorite}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Data="{StaticResource RmIconFavorite}" Width="8" Height="8"
+                          VerticalAlignment="Center" />
+                <TextBlock Text="Favourite" Classes="small" VerticalAlignment="Center" />
+                <Button Classes="affordance" Padding="1,0"
+                        AutomationProperties.Name="Remove from favourites"
+                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ClearFavouriteCommand}">
+                  <PathIcon Data="{StaticResource RmIconClose}" Width="7" Height="7" />
+                </Button>
+              </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedModTags}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TagChipViewModel">
+                  <Border Classes="card" Padding="6,1" Margin="0,0,4,4" CornerRadius="3">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                              Classes="paletted"
+                              Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                              Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                              Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                      <TextBlock Text="{Binding Name}" Classes="small sec" VerticalAlignment="Center" />
+                      <!-- Always rendered at text.tertiary and only brightened, never
+                           hover-revealed (#11). -->
+                      <Button Classes="affordance" Padding="1,0"
+                              AutomationProperties.Name="Remove this tag"
+                              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ToggleTagCommand}"
+                              CommandParameter="{Binding Id}">
+                        <PathIcon Data="{StaticResource RmIconClose}" Width="7" Height="7" />
+                      </Button>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- + Tag: assign an existing tag, or type a name to create one. Creating
+                 from here keeps tagging inside the keyboard loop (1e §2). -->
+            <Button Classes="quiet" Height="20" Padding="6,0" Margin="0,0,4,4">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon Data="{StaticResource RmIconPlus}" Width="8" Height="8"
+                          VerticalAlignment="Center" />
+                <TextBlock Text="Tag" VerticalAlignment="Center" />
+              </StackPanel>
+              <Button.Flyout>
+                <!--
+                  O7/O8 · the assign flyout, on the same grammar as the Tags ▾ filter:
+                  no checkboxes, a tick in a fixed 14px slot, search, and a bounded
+                  scroll. It acts on the SELECTION, not on the one mod whose info pane
+                  it hangs off — which is why the heading counts. Every tag is listed,
+                  assigned or not, because a tri-state needs the assigned ones present
+                  to show "1 of 3"; the old flyout listed only the unassigned.
+                -->
+                <Flyout Placement="BottomEdgeAlignedLeft">
+                  <StackPanel Width="250" Spacing="1">
+                    <TextBlock Margin="8,6,8,4" Classes="micro"
+                               Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AssignHeading}" />
+
+                    <TextBox Margin="6,0,6,2" AutomationProperties.Name="Search tags"
+                             Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AssignSearch, Mode=TwoWay}"
+                             PlaceholderText="Search tags…" />
+
+                    <!-- Both lines point at Settings now that the create box has gone (O22).
+                         A dead end that names no way forward is the thing the empty-state
+                         pass (3e) exists to prevent. -->
+                    <TextBlock Margin="8,4" Classes="small ter" TextWrapping="Wrap"
+                               IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AssignSearchFoundNothing}"
+                               Text="No tag matches that. New tags are made in Settings ▸ Tags." />
+
+                    <TextBlock Margin="8,4" Classes="small ter" TextWrapping="Wrap"
+                               IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).HasNoTagsAtAll}"
+                               Text="No tags yet. Make the first one in Settings ▸ Tags." />
+
+                    <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                      <ItemsControl ItemsSource="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).VisibleAssignRows}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:TagAssignRowViewModel">
+                            <Button Classes="listRow" Classes.on="{Binding IsAll}"
+                                    AutomationProperties.Name="{Binding Name}"
+                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AssignTagCommand}"
+                                    CommandParameter="{Binding Id}">
+                              <Grid ColumnDefinitions="14,4,Auto,7,*,8,Auto" Height="24">
+                                <!-- Tick for all, dash for some, nothing for none —
+                                     one slot, three states, never two marks at once. -->
+                                <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}"
+                                          Width="9" Height="9" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource RmAccentTextBrush}"
+                                          IsVisible="{Binding IsAll}" />
+                                <PathIcon Grid.Column="0" Data="{StaticResource RmIconMinus}"
+                                          Width="9" Height="9" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource RmTextSecondaryBrush}"
+                                          IsVisible="{Binding IsSome}" />
+                                <Border Grid.Column="2" Width="8" Height="8" CornerRadius="2"
+                                        VerticalAlignment="Center" Classes="paletted"
+                                        Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                        Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                        Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                                <TextBlock Grid.Column="4" Text="{Binding Name}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <!-- "1 of 3": the dash as a number rather than a mood. -->
+                                <TextBlock Grid.Column="6" Text="{Binding CountText}" Classes="mono ter"
+                                           VerticalAlignment="Center" />
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </ScrollViewer>
+
+                    <Border Height="1" Margin="0,4" Classes="divider" />
+
+                    <!--
+                      O22 · the create box is GONE, owner's call: tags are made in
+                      Settings and only assigned here. The footer is the filter
+                      flyout's two-button grammar — navigate left, act right.
+
+                      The right-hand verb is "Remove all tags", NOT "Clear". Every
+                      visible "Clear" in this app resets a FILTER, and this flyout is a
+                      deliberate mirror of the one whose footer carries that word in
+                      this exact slot; putting an unrecoverable data deletion there
+                      under the same label would be a trap. It routes through the
+                      destructive confirm (2i-6) because nothing else can bring the
+                      tags back — metadata is not in the undo history, and Ctrl+Z after
+                      one would repaint the pills from the already-cleared file.
+                    -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,2">
+                      <Button Grid.Column="0" Classes="quiet" Content="Manage tags…"
+                              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ManageTagsCommand}"
+                              ToolTip.Tip="Create, rename, recolour and delete tags in Settings" />
+                      <Button Grid.Column="2" Classes="quiet" Content="Remove all tags"
+                              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RemoveAllTagsCommand}"
+                              ToolTip.ShowOnDisabled="True"
+                              ToolTip.Tip="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RemoveAllTagsTip}" />
+                    </Grid>
+                  </StackPanel>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+          </WrapPanel>
+        </StackPanel>
+
+        <!-- 5 · facts grid. Label column 78px so the values line up as a column of
+             their own rather than ragged after variable-length labels. -->
+        <Grid Margin="10,10,10,0" ColumnDefinitions="78,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Author" Classes="small ter" />
+          <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Authors}" Classes="small sec"
+                     TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Version" Classes="small ter" Margin="0,5,0,0" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Version}" Classes="small sec"
+                     Margin="0,5,0,0" />
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Supports" Classes="small ter" Margin="0,5,0,0" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SupportedVersions}"
+                     Classes="small sec" Margin="0,5,0,0" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Content" Classes="small ter" Margin="0,5,0,0" />
+          <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Flags}" Classes="small sec"
+                     Margin="0,5,0,0" TextWrapping="Wrap" />
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Load order" Classes="small ter" Margin="0,5,0,0" />
+          <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LoadOrderText}" Classes="small sec"
+                     Margin="0,5,0,0" />
+
+          <!-- O3 · size on disk. Filled in after a background walk of the mod folder,
+               so it reads "—" for the moment between selecting a row and the walk
+               landing. Deliberately not part of the scan: see FolderSize. -->
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Size" Classes="small ter" Margin="0,5,0,0" />
+          <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SizeText}" Classes="small sec"
+                     Margin="0,5,0,0" />
+        </Grid>
+
+        <!-- 6 · dependencies. The INDEX is the point: knowing a dependency exists is
+             half the answer; knowing it loads at #4 while this mod loads at #118 is
+             what says the order is right. -->
+        <StackPanel Margin="10,12,10,0" IsVisible="{Binding HasDependencies}">
+          <TextBlock Text="DEPENDENCIES" Classes="micro" Margin="0,0,0,4" />
+          <ItemsControl ItemsSource="{Binding Dependencies}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DependencyRowViewModel">
+                <Grid ColumnDefinitions="11,6,*,Auto" Margin="0,1">
+                  <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}" Width="9" Height="9"
+                            Foreground="{DynamicResource RmSuccessBrush}"
+                            IsVisible="{Binding IsSatisfied}" />
+                  <PathIcon Grid.Column="0" Data="{StaticResource RmIconClose}" Width="9" Height="9"
+                            Foreground="{DynamicResource RmDangerBrush}"
+                            IsVisible="{Binding IsMissing}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="small sec"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding PositionText}" Classes="mono ter"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!--
+          6b · warnings (N2 · UI-5). Placed HERE, next to dependencies, rather than at
+          the very bottom as the backlog put it: the two are the same species of
+          content — what is wrong and what is needed — both are conditional, and
+          burying the most actionable thing in the pane under four lines of Workshop
+          description is the opposite of what this section is for. Notes → description
+          → actions stay the stable tail either way.
+
+          It reads the ROW's warnings rather than re-deriving them, so the pane, the
+          row's tooltip and the dock cannot disagree about what is wrong with a mod.
+        -->
+        <StackPanel Margin="10,12,10,0"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedModHasWarnings}">
+          <TextBlock Classes="micro" Margin="0,0,0,4"
+                     Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedModWarningHeading}" />
+          <ItemsControl ItemsSource="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedModWarnings}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RowWarning">
+                <!-- Grid, not a horizontal StackPanel: a StackPanel measures its
+                     children at infinite width, so the wrapping message would never
+                     wrap and would paint straight out of the pane.
+
+                     The glyph comes from the warning's OWN tone, exactly as the dock's
+                     rows do. It was hardcoded to the amber ⚠, so Achtung! showed the red
+                     blocking mark in the list and an amber triangle in this pane for the
+                     very same incompatibility — the panel disagreeing with the row about
+                     how serious something is. Same three glyphs, same three brushes. -->
+                <Grid ColumnDefinitions="11,6,*" Margin="0,1">
+                  <Panel Grid.Column="0" VerticalAlignment="Top" Margin="0,3,0,0">
+                    <PathIcon Data="{StaticResource RmIconError}" Width="9" Height="9"
+                              Foreground="{DynamicResource RmDangerBrush}"
+                              IsVisible="{Binding IsBlocking}" />
+                    <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9"
+                              Foreground="{DynamicResource RmWarningBrush}"
+                              IsVisible="{Binding IsWarning}" />
+                    <PathIcon Data="{StaticResource RmIconInfo}" Width="9" Height="9"
+                              Foreground="{DynamicResource RmTextTertiaryBrush}"
+                              IsVisible="{Binding IsInfo}" />
+                  </Panel>
+                  <TextBlock Grid.Column="2" Text="{Binding Message}" Classes="small sec"
+                             TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Classes="quiet" Content="Show in Warnings" Margin="0,6,0,0"
+                  HorizontalAlignment="Left"
+                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RevealSelectedModWarningsCommand}" />
+        </StackPanel>
+
+        <!-- 7 · notes, ABOVE the description because they are the user's own. -->
+        <StackPanel Margin="10,12,10,0">
+          <TextBlock Text="NOTES" Classes="micro" Margin="0,0,0,4" />
+          <!-- Saves on blur (1a §7). UpdateSourceTrigger=LostFocus is what gives
+               that without a code-behind — a ResourceDictionary has none — and
+               without writing to disk on every keystroke. -->
+          <TextBox AutomationProperties.Name="Notes for this mod"
+                 Text="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                   AcceptsReturn="True" TextWrapping="Wrap" MinHeight="42"
+                   Background="{DynamicResource RmBackgroundCanvasBrush}" />
+        </StackPanel>
+
+        <!-- 8 · description, clamped. BBCode is stripped upstream. -->
+        <StackPanel Margin="10,12,10,0" IsVisible="{Binding HasDescription}">
+          <TextBlock Text="DESCRIPTION" Classes="micro" Margin="0,0,0,4" />
+          <TextBlock Text="{Binding Description}" Classes="small sec" TextWrapping="Wrap"
+                     MaxLines="4" TextTrimming="CharacterEllipsis" />
+          <!-- O3 · offered only when the clamp is actually cutting something, so it
+               never promises text that is already all on screen.
+               O23 · a link, not a quiet button: it opens more of the text above it and
+               changes nothing, which is the "go somewhere" side of T6's line. Still a
+               Button, so it keeps focus, the keyboard and an automation name — see
+               Button.link's note for why that is not negotiable. -->
+          <Button Classes="link" Content="Read more" Margin="0,5,0,0"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.Name="Read the full description"
+                  IsVisible="{Binding DescriptionIsClamped}"
+                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenFullDescriptionCommand}" />
+        </StackPanel>
+
+        <!-- 9 · actions, as 22px quiet buttons. The "About.xml" button is GONE (T6):
+             its reason promised "the XML viewer (R5)", R5 shipped without one, and a
+             disabled control whose reason names a schedule goes stale the day the
+             schedule moves. Open folder reaches the same file. -->
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,12,10,12">
+          <Button Classes="quiet" Content="Open folder" Command="{Binding OpenFolderCommand}" />
+          <!-- Hidden rather than disabled for a local mod: there is no Workshop page
+               to open, and a permanently dead button teaches nothing. -->
+          <Button Classes="quiet" Command="{Binding OpenWorkshopCommand}"
+                  IsVisible="{Binding HasWorkshopUrl}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Workshop" VerticalAlignment="Center" />
+              <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                        VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DataTemplate>
+</ResourceDictionary>

@@ -1,0 +1,158 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:adc="using:Avalonia.Data.Converters"
+                    xmlns:dock="using:RimManager.App.Views.Dock">
+  <!--
+    The one dock skeleton (SCREENS.md: "All six tabs are the same shell. Build it
+    once."):
+
+      32px  tab toolbar   filter chips (left) → search → actions (right)
+      *     body          master table (left) + detail panel (right), splitter between
+      24px  tab footer    only Warnings and Collection have one
+
+    The 26px tab strip is NOT here — it stays visible when the dock is closed, so it
+    lives in the window, not in the panel the window opens.
+
+    Colour only via tokens; every band height comes from Metrics.axaml, so the dock
+    cannot drift from the mod lists.
+  -->
+
+  <ControlTheme x:Key="{x:Type dock:DockTabShell}" TargetType="dock:DockTabShell">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSurfaceBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                BorderThickness="0,1,0,0"
+                ClipToBounds="True">
+          <DockPanel>
+
+            <!-- ===================== 36px tab toolbar ====================== -->
+            <!-- O4 · more horizontal room and real vertical padding, on every tab at
+                 once: this Border is the single place that reaches all four toolbars.
+                 It was 32px tall with Padding="6,0", so a 22px button sat with 5px of
+                 air above and below and 6px to the window edge — the row read as
+                 cramped against the table header under it. 36 with 10,5 gives the
+                 buttons a 26px band and puts them clear of both edges. -->
+            <Border DockPanel.Dock="Top"
+                    Height="{DynamicResource RmDockToolbarHeight}"
+                    Padding="10,5"
+                    Background="{DynamicResource RmBackgroundAltBrush}"
+                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                    BorderThickness="0,0,0,1">
+              <ContentPresenter Content="{TemplateBinding Toolbar}" VerticalAlignment="Center" />
+            </Border>
+
+            <!-- ======================= 24px tab footer ===================== -->
+            <!-- Declared before the body so DockPanel gives the body the remainder. -->
+            <Border DockPanel.Dock="Bottom"
+                    Height="{DynamicResource RmDockFooterHeight}"
+                    Padding="8,0"
+                    IsVisible="{TemplateBinding HasFooter}"
+                    Background="{DynamicResource RmBackgroundAltBrush}"
+                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                    BorderThickness="0,1,0,0">
+              <ContentPresenter Content="{TemplateBinding Footer}" VerticalAlignment="Center" />
+            </Border>
+
+            <!-- ====== body: master table + detail panel + optional aside ===== -->
+            <!--
+              Two arrangements of the SAME presenters. Below 900px (2k) the detail
+              Border is moved out of its column and into PART_StackHost below the
+              table: at that width a fixed 392px detail panel leaves the master ~450px,
+              and a five-column table cannot be read in it.
+
+              Moved, not duplicated — a ContentPresenter's content can only be parented
+              once, and two presenters bound to one Detail would fight over it.
+            -->
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="64" />
+                <RowDefinition Height="Auto" />
+                <!-- Two-way, exactly like the detail COLUMN: a GridSplitter resizes a
+                     RowDefinition, not a child's Height. Giving the host a fixed Height
+                     instead left it 120px tall inside a row the splitter had grown, so
+                     dragging the divider up opened a blank band above the panel. -->
+                <RowDefinition Height="{Binding DetailStackRow, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+              </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" x:Name="PART_Columns">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="260" />
+                <ColumnDefinition Width="Auto" />
+                <!-- Two-way: the splitter writes the length here and DockTabShell
+                     mirrors it onto DetailWidth, which is what gets persisted. -->
+                <ColumnDefinition Width="{Binding DetailColumn, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+                <ColumnDefinition Width="Auto" />
+                <!-- The optional third pane (2d), resizable like the detail panel:
+                     the rail carries wrapping text whose comfortable width depends on
+                     the theme's font, so one number cannot be right for everyone. -->
+                <ColumnDefinition Width="{Binding AsideColumn, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+              </Grid.ColumnDefinitions>
+
+              <ContentPresenter Grid.Column="0" Content="{TemplateBinding Master}" />
+
+              <GridSplitter Grid.Column="1" x:Name="PART_DetailSplitter" Classes="dockDetail"
+                            IsVisible="{TemplateBinding HasDetail}" />
+
+              <Border Grid.Column="2" x:Name="PART_Detail" IsVisible="{TemplateBinding HasDetail}"
+                      Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                      BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                      BorderThickness="1,0,0,0">
+                <DockPanel>
+                  <!-- 22px, aligned with the master table's column header so the two
+                       read as one band. -->
+                  <Border DockPanel.Dock="Top" Classes="dockTableHeader"
+                          IsVisible="{TemplateBinding DetailHeader, Converter={x:Static adc:ObjectConverters.IsNotNull}}">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0" Classes="micro" VerticalAlignment="Center"
+                                 Text="{TemplateBinding DetailHeader}" />
+                      <TextBlock Grid.Column="1" Classes="micro" VerticalAlignment="Center"
+                                 Text="{TemplateBinding DetailCounter}" />
+                    </Grid>
+                  </Border>
+
+                  <!-- "The detail panel scrolls; it is never clipped" — below the
+                       dock's minimum height the panel scrolls rather than truncating
+                       its primary actions. -->
+                  <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                    <ContentPresenter Content="{TemplateBinding Detail}" Margin="10,8" />
+                  </ScrollViewer>
+                </DockPanel>
+              </Border>
+
+              <GridSplitter Grid.Column="3" Classes="dockDetail"
+                            IsVisible="{TemplateBinding HasAside}" />
+
+              <Border Grid.Column="4" IsVisible="{TemplateBinding HasAside}"
+                      Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                      BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                      BorderThickness="1,0,0,0">
+                <DockPanel>
+                  <Border DockPanel.Dock="Top" Classes="dockTableHeader"
+                          IsVisible="{TemplateBinding AsideHeader, Converter={x:Static adc:ObjectConverters.IsNotNull}}">
+                    <TextBlock Classes="micro" VerticalAlignment="Center"
+                               Text="{TemplateBinding AsideHeader}" />
+                  </Border>
+                  <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                    <ContentPresenter Content="{TemplateBinding Aside}" Margin="10,8" />
+                  </ScrollViewer>
+                </DockPanel>
+              </Border>
+            </Grid>
+
+            <!-- Stacked detail (2k, below 900px). Empty and collapsed at every other
+                 width; PART_Detail is re-parented into it by DockTabShell. -->
+            <GridSplitter Grid.Row="1" x:Name="PART_StackSplitter" Classes="dockStack"
+                          IsVisible="False" />
+            <Border Grid.Row="2" x:Name="PART_StackHost" IsVisible="False" />
+            </Grid>
+
+          </DockPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

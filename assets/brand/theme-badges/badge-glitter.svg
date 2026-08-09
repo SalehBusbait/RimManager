@@ -1,0 +1,30 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Glitterworld theme</title>
+<defs><clipPath id="badge-glitter"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#0A1522"></rect>
+<g clip-path="url(#badge-glitter)">
+<line x1="114" y1="112" x2="122" y2="120" stroke="#4FD8E0" stroke-width="2" stroke-linecap="round" opacity="0.35"></line>
+<line x1="206" y1="112" x2="198" y2="120" stroke="#4FD8E0" stroke-width="2" stroke-linecap="round" opacity="0.35"></line>
+<line x1="114" y1="188" x2="122" y2="180" stroke="#4FD8E0" stroke-width="2" stroke-linecap="round" opacity="0.35"></line>
+<line x1="206" y1="188" x2="198" y2="180" stroke="#4FD8E0" stroke-width="2" stroke-linecap="round" opacity="0.35"></line>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#4FD8E0" stroke-width="1.5" opacity=".4"></circle>
+<circle cx="160" cy="470" r="260" fill="#1C3040"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#4FD8E0" stroke-width="2.5"></circle>
+<circle cx="160" cy="470" r="250" fill="none" stroke="#2E6373" stroke-width="1.2" opacity="0.7"></circle>
+<rect x="116" y="207" width="4" height="9" fill="#7ED2DC" opacity="0.9"></rect>
+<rect x="145" y="203" width="5" height="11" fill="#7ED2DC" opacity="0.9"></rect>
+<rect x="190" y="206" width="4" height="10" fill="#7ED2DC" opacity="0.9"></rect>
+<circle cx="88" cy="82" r="1.6" fill="#9FE8EE" opacity="0.6"></circle>
+<circle cx="236" cy="72" r="1.4" fill="#9FE8EE" opacity="0.5"></circle>
+<circle cx="234" cy="182" r="1.6" fill="#9FE8EE" opacity="0.55"></circle>
+<circle cx="76" cy="160" r="1.2" fill="#9FE8EE" opacity="0.4"></circle>
+<circle cx="160" cy="150" r="34" fill="#4FD8E0" opacity="0.1"></circle>
+<ellipse cx="160" cy="150" rx="54" ry="16" fill="none" stroke="#4FD8E0" stroke-width="2" opacity="0.5" transform="rotate(-18 160 150)"></ellipse>
+<circle cx="160" cy="150" r="26" fill="#D9E5ED"></circle>
+<circle cx="160" cy="150" r="14.5" fill="none" stroke="#35B9C4" stroke-width="3"></circle>
+<circle cx="160" cy="150" r="5.5" fill="#1F98A6"></circle>
+<path d="M144 142 A 19 19 0 0 1 152 131" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity="0.65"></path>
+<circle cx="110" cy="160" r="2.5" fill="#9FE8EE"></circle>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#1F3A4C" stroke-width="2"></rect>
+</svg>

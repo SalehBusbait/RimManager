@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BUILD TOOL, not shipped code (T4). Rasterises the ten theme badges
+    (assets/brand/theme-badges/badge-*.svg, the accepted design's literal crops)
+    into src/RimManager.App/Assets/marks/mark-<Id>.png. Svg.Skia lives HERE, in a
+    tool outside RimManager.slnx, precisely so the app never takes the dependency
+    the logo decision declined (five packages to draw a 64px tile; reasoning in
+    assets/brand/make-icon.py). The PNGs are committed; rerun only when a badge
+    SVG changes, via dotnet run on this project.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Svg.Skia" Version="3.0.4" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.RwListOfferWindow"
+        x:DataType="vm:RwListOfferViewModel"
+        Title="Import mod list" Width="560" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    S-RWLIST · a subscribed Workshop item whose payload is a mod list (NF-10). The
+    560px task dialog the strip's "Import…" opens. Modal in the CONFIRM family — one
+    question, a verb for a primary, and closing by any other route (Not now, Esc, ✕)
+    leaves Accepted false, so a dismissed dialog can never be read as an import.
+    Never auto-imports; this dialog IS the consent.
+  -->
+  <StackPanel Margin="20" Spacing="14">
+
+    <TextBlock Text="Import this mod list?" Classes="title" />
+
+    <!-- The item card: the Workshop item's name, then the payload's mono facts. -->
+    <Border CornerRadius="4" Padding="12,10"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding ItemName}" FontWeight="SemiBold"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ItemName}" />
+        <TextBlock Text="{Binding Facts}" Classes="mono small ter"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Facts}" />
+      </StackPanel>
+    </Border>
+
+    <!-- The payload did not parse: said plainly, with the primary disabled below.
+         The file on disk is untouched either way. -->
+    <TextBlock Text="{Binding ParseError}" Classes="small sec" TextWrapping="Wrap"
+               Foreground="{DynamicResource RmDangerBrush}"
+               IsVisible="{Binding HasError}" />
+
+    <!-- The payload parsed but its checksum does not match (B3). It belongs HERE, in
+         the window that asks for consent, and not in the status bar this modal covers.
+         It does not disable the primary: the list is well-formed, and a hand-edited
+         .rwlist is a legitimate thing to have — the point is that the fact is in front
+         of the user at the moment they decide. -->
+    <Border Classes="card" Padding="10,8" IsVisible="{Binding ChecksumMismatch}"
+            Background="{DynamicResource RmWarningTintBrush}"
+            BorderBrush="{DynamicResource RmWarningBrush}">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <PathIcon Data="{StaticResource RmIconWarning}" Width="13" Height="13"
+                  VerticalAlignment="Top" Margin="0,1,0,0"
+                  Foreground="{DynamicResource RmWarningBrush}" />
+        <!-- MaxWidth because this sits in a HORIZONTAL StackPanel, where a child is
+             measured at infinite width and TextWrapping would never engage. The
+             alignment is stated with it: a MaxWidth'd TextBlock left on the default
+             Stretch is CENTRED in its slot by the layout system. -->
+        <TextBlock Text="{Binding ChecksumWarning}" Classes="small sec"
+                   TextWrapping="Wrap" MaxWidth="380"
+                   HorizontalAlignment="Left" />
+      </StackPanel>
+    </Border>
+
+    <TextBlock Text="{x:Static vm:RwListOfferViewModel.Sentence}"
+               Classes="small sec" TextWrapping="Wrap" />
+
+    <Grid ColumnDefinitions="*,Auto,Auto">
+      <!-- Not-now first and focused: the safe option is the one the keyboard lands on.
+           It also marks the offer seen — the context menu is the standing re-offer. -->
+      <Button Grid.Column="1" Classes="quiet" Content="Not now" Margin="0,0,6,0"
+              IsCancel="True" Click="OnNotNow" />
+      <Button Grid.Column="2" Classes="accent" Content="Import as modlist…"
+              IsEnabled="{Binding CanImport}" Click="OnImport"
+              ToolTip.Tip="Creates a new modlist from this file — greyed out when the file could not be read" />
+    </Grid>
+  </StackPanel>
+</Window>

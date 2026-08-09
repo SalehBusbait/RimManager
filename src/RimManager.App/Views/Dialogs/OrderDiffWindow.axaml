@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.OrderDiffWindow"
+        x:DataType="vm:OrderDiffViewModel"
+        Title="Review differences" Width="560" Height="480"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    S-ORDERDIFF · the order-diff preview: what the game's order would change about
+    this list, anchored by packageId over the LCS — an insert at the top is ONE
+    insert, never 547 moves. Modal in the confirm family: one decision, and closing
+    by any route other than "Take theirs" changes nothing.
+
+    Opened from the game-moved strip's "Review differences…" and the drift zone's ▲.
+    "Take theirs" runs the same snapshot-first replace the strip used to carry; the
+    destructive verb now sits beside the evidence instead of before it.
+  -->
+  <Window.Resources>
+    <DataTemplate x:Key="OrderDiffRowTemplate" x:DataType="vm:OrderDiffRow">
+      <!-- A Grid, never a horizontal StackPanel: the NAME cell must trim
+           (LayoutTrapTests). Second channel beside the colour: the mark icon. -->
+      <Grid ColumnDefinitions="18,6,*,10,Auto" Height="24">
+        <PathIcon Grid.Column="0" Data="{StaticResource RmIconPlus}" Width="10" Height="10"
+                  Foreground="{DynamicResource RmSuccessBrush}" VerticalAlignment="Center"
+                  IsVisible="{Binding IsInsert}" />
+        <PathIcon Grid.Column="0" Data="{StaticResource RmIconMinus}" Width="10" Height="10"
+                  Foreground="{DynamicResource RmDangerBrush}" VerticalAlignment="Center"
+                  IsVisible="{Binding IsRemove}" />
+        <PathIcon Grid.Column="0" Data="{StaticResource RmIconMoveArrow}" Width="11" Height="11"
+                  Foreground="{DynamicResource RmInfoBrush}" VerticalAlignment="Center"
+                  IsVisible="{Binding IsMove}" />
+
+        <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="sec"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding Name}" />
+
+        <TextBlock Grid.Column="4" Text="{Binding PositionText}" Classes="mono small ter"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top" Height="40" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <!-- The honest summary IS the header — the counts are the finding. -->
+      <TextBlock Text="{Binding Headline}" Classes="title" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Headline}" />
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Height="44" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0" Text="{x:Static vm:OrderDiffViewModel.FooterSentence}"
+                   Classes="small ter" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+        <!-- Keep mine first and focused: the option that changes nothing is the one
+             the keyboard lands on. -->
+        <Button Grid.Column="1" Classes="quiet" Content="Keep mine" Margin="0,0,6,0"
+                IsCancel="True" Click="OnKeepMine" />
+        <Button Grid.Column="2" Classes="accent" Content="Take theirs" Click="OnTakeTheirs"
+                ToolTip.Tip="Replace this list's arrangement with the game's order — the current arrangement is kept in History first" />
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <!-- Gutters as Margin, never ScrollViewer.Padding (LayoutTrapTests). -->
+      <ItemsControl Margin="12,8" ItemsSource="{Binding Rows}"
+                    ItemTemplate="{StaticResource OrderDiffRowTemplate}" />
+    </ScrollViewer>
+  </DockPanel>
+</Window>

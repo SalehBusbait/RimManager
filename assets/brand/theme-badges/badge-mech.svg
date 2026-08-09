@@ -1,0 +1,29 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Mechanoid Threat theme</title>
+<defs><clipPath id="badge-mech"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#14171C"></rect>
+<g clip-path="url(#badge-mech)">
+<path d="M136 101 Q160 82 184 101" fill="none" stroke="#E23B30" stroke-width="2" stroke-linecap="round" opacity="0.3"></path>
+<path d="M144 110 Q160 96 176 110" fill="none" stroke="#E23B30" stroke-width="2.5" stroke-linecap="round" opacity="0.5"></path>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#5A6572" stroke-width="1.5" opacity=".4"></circle>
+<circle cx="160" cy="470" r="260" fill="#262C34"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#E23B30" stroke-width="2.5"></circle>
+<rect x="118" y="215" width="3" height="9" fill="#39414B"></rect>
+<rect x="158" y="212" width="3" height="12" fill="#39414B"></rect>
+<rect x="196" y="215" width="3" height="9" fill="#39414B"></rect>
+<circle cx="88" cy="84" r="1.6" fill="#E23B30" opacity="0.5"></circle>
+<circle cx="236" cy="96" r="1.4" fill="#E23B30" opacity="0.4"></circle>
+<circle cx="78" cy="150" r="1.2" fill="#E23B30" opacity="0.35"></circle>
+<circle cx="108" cy="66" r="1.3" fill="#9AA4AE" opacity="0.45"></circle>
+<circle cx="228" cy="150" r="1.5" fill="#9AA4AE" opacity="0.4"></circle>
+<line x1="160" y1="132" x2="160" y2="118" stroke="#59626C" stroke-width="3"></line>
+<circle cx="160" cy="115" r="3" fill="#FF4B3C"></circle>
+<rect x="128" y="144" width="8" height="20" rx="3" fill="#39414B"></rect>
+<rect x="184" y="144" width="8" height="20" rx="3" fill="#39414B"></rect>
+<rect x="136" y="132" width="48" height="44" rx="10" fill="#59626C"></rect>
+<rect x="142" y="146" width="36" height="18" rx="6" fill="#2E353E"></rect>
+<rect x="144" y="149" width="32" height="12" rx="6" fill="#FF4B3C" opacity="0.3"></rect>
+<rect x="148" y="152" width="24" height="6" rx="3" fill="#FF4B3C"></rect>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#303844" stroke-width="2"></rect>
+</svg>

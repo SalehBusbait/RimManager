@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.RwListOfferStripView"
+             x:DataType="vm:MainWindowViewModel"
+             IsVisible="{Binding ShowRwListOfferStrip}">
+  <!--
+    NF-10 · a subscribed Workshop item's payload is a mod list, not a mod. Info tone:
+    unlike game-moved there is no wrong answer to warn about — the item sits harmlessly
+    in the inactive pane whatever the user does. One offer at a time, sequentially;
+    dismissing marks it seen for good (the row's context menu is the standing
+    re-offer), and the next unseen item, if any, takes the band.
+
+    The strip never acts on its own (S-STRIPS): "Import…" only opens the S-RWLIST
+    dialog, which is the consent.
+  -->
+  <Border Classes="strip info" AutomationProperties.Name="A Workshop item looks like a mod list">
+    <Grid ColumnDefinitions="Auto,10,Auto,8,*,10,Auto,4,Auto">
+
+      <PathIcon Grid.Column="0" Classes="stripIcon" Data="{StaticResource RmIconInfo}"
+                Width="13" Height="13" VerticalAlignment="Center" />
+
+      <TextBlock Grid.Column="2" Text="{Binding RwListOfferHeadline}"
+                 FontSize="{DynamicResource RmFontSizeBody}" FontWeight="SemiBold"
+                 Foreground="{DynamicResource RmTextPrimaryBrush}"
+                 VerticalAlignment="Center" />
+
+      <!-- A star Grid column, never a horizontal StackPanel (LayoutTrapTests). -->
+      <TextBlock Grid.Column="4" Text="{x:Static vm:RwListOfferPresenter.StripDetail}"
+                 Classes="small sec" TextTrimming="CharacterEllipsis"
+                 VerticalAlignment="Center" />
+
+      <Button Grid.Column="6" Classes="stripPrimary" Content="Import…"
+              Command="{Binding OpenRwListOfferCommand}"
+              ToolTip.Tip="See what the list contains and choose — nothing is imported until you say so"
+              VerticalAlignment="Center" />
+
+      <Button Grid.Column="8" Classes="affordance" Padding="4" VerticalAlignment="Center"
+              Command="{Binding DismissRwListOfferCommand}"
+              AutomationProperties.Name="Dismiss the mod-list offer"
+              ToolTip.Tip="Don't offer this item again — the row's right-click menu can still import it">
+        <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

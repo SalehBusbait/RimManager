@@ -1,0 +1,28 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Void Provocation theme</title>
+<defs><clipPath id="badge-anomaly"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#0B0810"></rect>
+<g clip-path="url(#badge-anomaly)">
+<circle cx="160" cy="148" r="46" fill="none" stroke="#C1163A" stroke-width="1.5" opacity="0.25"></circle>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#4A4356" stroke-width="1.5" opacity=".35"></circle>
+<circle cx="160" cy="470" r="260" fill="#171221"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#8F1B3C" stroke-width="2.5"></circle>
+<ellipse cx="160" cy="217" rx="44" ry="6" fill="#E01743" opacity="0.06"></ellipse>
+<circle cx="88" cy="82" r="1.6" fill="#C1163A" opacity="0.4"></circle>
+<circle cx="236" cy="72" r="1.4" fill="#C1163A" opacity="0.35"></circle>
+<circle cx="108" cy="112" r="1.2" fill="#C1163A" opacity="0.3"></circle>
+<circle cx="234" cy="182" r="1.6" fill="#C1163A" opacity="0.4"></circle>
+<circle cx="76" cy="160" r="1.2" fill="#C1163A" opacity="0.3"></circle>
+<polygon points="116,148 126,140 123,154" fill="#3E3453"></polygon>
+<polygon points="199,126 209,122 205,136" fill="#3E3453"></polygon>
+<polygon points="193,175 202,171 200,183" fill="#3E3453"></polygon>
+<polygon points="148,218 172,218 166,118 154,124" fill="#251D31"></polygon>
+<path d="M154 124 L148 218" fill="none" stroke="#4A4058" stroke-width="1.5"></path>
+<path d="M154 124 L166 118" fill="none" stroke="#4A4058" stroke-width="1.5"></path>
+<polygon points="160,140 172,156 160,172 148,156" fill="#E01743" opacity="0.22"></polygon>
+<polygon points="160,146 166,156 160,166 154,156" fill="#E01743"></polygon>
+<path d="M160 166 L157 183" fill="none" stroke="#E01743" stroke-width="1.5" stroke-linecap="round" opacity="0.5"></path>
+<path d="M160 146 L163 133" fill="none" stroke="#E01743" stroke-width="1.5" stroke-linecap="round" opacity="0.5"></path>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#2C2338" stroke-width="2"></rect>
+</svg>

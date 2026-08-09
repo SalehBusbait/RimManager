@@ -1,0 +1,444 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.FirstRun.FirstRunWindow"
+        x:DataType="vm:FirstRunViewModel"
+        Title="Set up RimManager"
+        Width="880" Height="600"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource RmBackgroundSurfaceBrush}">
+  <!--
+    2j · first run. Four steps, skippable at any point, re-runnable from Help.
+    880 × 600 as specified. Step 1 is a centred hero with no header band; steps 2-4
+    carry the 96px header and the progress chain.
+  -->
+  <DockPanel>
+
+    <!-- ===================== 96px header (steps 2-4) ===================== -->
+    <Border DockPanel.Dock="Top" Height="96" IsVisible="{Binding ShowsHeader}"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="24,0">
+        <Image Grid.Column="0" Source="{Binding Mark}"
+               Width="44" Height="44" VerticalAlignment="Center" />
+
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center" Margin="14,0,16,0">
+          <TextBlock Text="{Binding HeaderTitle}" Classes="page" />
+          <TextBlock Text="{Binding HeaderSubhead}" Classes="small sec"
+                     TextWrapping="Wrap" HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <!-- The progress chain: four of one thing, so one template. -->
+        <ItemsControl Grid.Column="2" ItemsSource="{Binding Chain}" VerticalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ChainNodeViewModel">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Border Classes="chainNode"
+                        Classes.done="{Binding IsDone}"
+                        Classes.current="{Binding IsCurrent}">
+                  <!-- The mark lives INSIDE the circle. It began as a sibling nudged
+                       back with a negative margin, which put every number over its
+                       neighbour instead of in its own node. -->
+                  <Panel>
+                    <!-- Shape as well as fill: a done node is a tick, not just green. -->
+                    <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                              IsVisible="{Binding IsDone}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Foreground="{DynamicResource RmOnAccentBrush}" />
+                    <TextBlock Text="{Binding Number}" Classes="chainNumber"
+                               Classes.current="{Binding IsCurrent}"
+                               IsVisible="{Binding !IsDone}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Panel>
+                </Border>
+                <TextBlock Text="{Binding Title}" Classes="chainLabel"
+                           Classes.done="{Binding IsDone}"
+                           Classes.current="{Binding IsCurrent}" />
+                <Border Classes="chainRule" IsVisible="{Binding HasRule}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+    </Border>
+
+    <!-- ========================= 52px footer ========================= -->
+    <Border DockPanel.Dock="Bottom" Height="52"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto" Margin="24,0">
+        <TextBlock Grid.Column="0" Text="{Binding FooterHint}" Classes="small ter"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+        <!-- Skip on step 1, Back thereafter: there is nothing behind the first screen. -->
+        <Button Grid.Column="1" Classes="quiet" Content="Skip setup" Margin="0,0,8,0"
+                IsVisible="{Binding IsWelcome}"
+                Command="{Binding SkipCommand}"
+                ToolTip.Tip="Sets the paths from what we detected and opens the app. Nothing is written to your game folder either way." />
+        <Button Grid.Column="1" Classes="quiet" Content="Back" Margin="0,0,8,0"
+                IsVisible="{Binding !IsWelcome}"
+                Command="{Binding BackCommand}" />
+
+        <Button Grid.Column="2" Classes="accent" Content="{Binding PrimaryLabel}"
+                IsEnabled="{Binding CanContinue}"
+                Command="{Binding NextCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- ============================ the body ============================ -->
+    <Panel>
+
+      <!-- ========================= STEP 1 · Welcome ========================= -->
+      <StackPanel IsVisible="{Binding IsWelcome}" Spacing="18"
+                  VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40,0">
+        <Image Source="{Binding Mark}"
+               Width="64" Height="64" HorizontalAlignment="Center" />
+
+        <StackPanel Spacing="8">
+          <!--
+            The wordmark, set in the shipped UI font rather than as the artwork's
+            outlines: the source SVG sets it in a font no user has, and fills the
+            second half with a CSS variable that resolves nowhere outside a browser.
+            Drawn as text it stays crisp at any DPI and "Manager" follows the theme.
+          -->
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+            <TextBlock Text="Rim" FontSize="28" FontWeight="Medium"
+                       Foreground="{DynamicResource RmBrandBrush}" />
+            <TextBlock Text="Manager" FontSize="28"
+                       Foreground="{DynamicResource RmTextPrimaryBrush}" />
+          </StackPanel>
+          <TextBlock Text="M O D   L O A D   O R D E R" FontSize="{DynamicResource RmFontSizeSmall}"
+                     HorizontalAlignment="Center" Classes="ter" />
+          <TextBlock Classes="sec" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560"
+                     HorizontalAlignment="Center"
+                     Text="A mod manager for RimWorld that runs the same on Windows, Linux and macOS.&#x0a;Three minutes of setup and it will never touch your game folder without telling you." />
+        </StackPanel>
+
+        <!-- Three promises, each of which the rest of the wizard then keeps. -->
+        <Grid ColumnDefinitions="*,12,*,12,*" Margin="0,8,0,0">
+          <Border Grid.Column="0" Classes="card" Padding="14,12">
+            <StackPanel Spacing="5">
+              <TextBlock Text="Reads, never guesses" Classes="pri" FontWeight="SemiBold" />
+              <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                         Text="Your current ModsConfig.xml becomes snapshot #1 before anything changes." />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="card" Padding="14,12">
+            <StackPanel Spacing="5">
+              <TextBlock Text="Every change reversible" Classes="pri" FontWeight="SemiBold" />
+              <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                         Text="Undo, snapshots, and a backup of ModsConfig.xml on every Apply." />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="4" Classes="card" Padding="14,12">
+            <StackPanel Spacing="5">
+              <TextBlock Text="Works offline" Classes="pri" FontWeight="SemiBold" />
+              <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                         Text="Steam and the community rules DB are optional. Local and GOG installs are first-class." />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+
+      <!-- ========================== STEP 2 · Paths ========================== -->
+      <ScrollViewer IsVisible="{Binding IsPaths}">
+        <StackPanel Spacing="14" Margin="24,20">
+
+          <!-- Install type. "detected" is measured, not assumed: a Workshop folder
+               beside the install is what makes it a Steam one. -->
+          <Grid ColumnDefinitions="*,12,*">
+            <RadioButton Grid.Column="0" Classes="card" GroupName="installType"
+                         IsChecked="{Binding IsSteamInstall, Mode=TwoWay}">
+              <StackPanel Spacing="3">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Steam install" Classes="pri" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="detected" Classes="small mono ok"
+                             IsVisible="{Binding WorkshopDir, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </Grid>
+                <!-- The GAME path, as `1d` draws it. This showed the Workshop folder,
+                     which is the one path the card is not about. -->
+                <TextBlock Text="{Binding GameDir}" Classes="small mono ter"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding GameDir}" />
+                <!-- The short fact, not the long probe message: that one is already
+                     printed under the field below, and here it only ellipsised. -->
+                <TextBlock Text="{Binding WorkshopCheck.Message}" Classes="small ter"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </RadioButton>
+
+            <RadioButton Grid.Column="2" Classes="card" GroupName="installType"
+                         IsChecked="{Binding IsOtherInstall, Mode=TwoWay}">
+              <StackPanel Spacing="3">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Other install" Classes="pri" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="GOG / DRM-free" Classes="small mono ter" />
+                </Grid>
+                <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="Pick the folders yourself. Workshop features stay off; local, git and vault mods all still work." />
+              </StackPanel>
+            </RadioButton>
+          </Grid>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Game install folder" Classes="small sec" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Classes="inset" Text="{Binding GameDir, Mode=TwoWay}"
+                       Classes.invalid="{Binding GameCheck.IsMissing}"
+                       FontFamily="{DynamicResource RmFontMono}"
+                       AutomationProperties.Name="Game install folder" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="8,0,0,0"
+                      Click="OnBrowseGame" />
+            </Grid>
+            <TextBlock Text="{Binding GameCheck.Message}" Classes="small"
+                       Classes.ok="{Binding GameCheck.IsOk}"
+                       Classes.warn="{Binding GameCheck.IsWarning}"
+                       Classes.bad="{Binding GameCheck.IsMissing}"
+                       TextWrapping="Wrap" HorizontalAlignment="Left" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Config folder" Classes="small sec" />
+              <TextBlock Text="— ModsConfig.xml lives here" Classes="small ter" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Classes="inset" Text="{Binding ConfigDir, Mode=TwoWay}"
+                       Classes.invalid="{Binding ConfigCheck.IsMissing}"
+                       FontFamily="{DynamicResource RmFontMono}"
+                       AutomationProperties.Name="Config folder" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="8,0,0,0"
+                      Click="OnBrowseConfig" />
+            </Grid>
+            <TextBlock Text="{Binding ConfigCheck.Message}" Classes="small"
+                       Classes.ok="{Binding ConfigCheck.IsOk}"
+                       Classes.warn="{Binding ConfigCheck.IsWarning}"
+                       Classes.bad="{Binding ConfigCheck.IsMissing}"
+                       TextWrapping="Wrap" HorizontalAlignment="Left" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Local mods folder  — always &lt;game&gt;/Mods, where RimWorld looks"
+                       Classes="small sec" />
+            <!-- DERIVED, like Settings ▸ Paths says of the same folder (UI audit):
+                 the editable field + Browse collected a path FinishFirstRun never
+                 read. The game gives you no choice here, so neither does the wizard. -->
+            <TextBox Classes="derived" IsReadOnly="True" Text="{Binding LocalModsDir}"
+                     FontFamily="{DynamicResource RmFontMono}"
+                     AutomationProperties.Name="Local mods folder (derived from the game folder)" />
+            <TextBlock Text="{Binding LocalModsCheck.Message}" Classes="small"
+                       Classes.ok="{Binding LocalModsCheck.IsOk}"
+                       Classes.warn="{Binding LocalModsCheck.IsWarning}"
+                       Classes.bad="{Binding LocalModsCheck.IsMissing}"
+                       TextWrapping="Wrap" HorizontalAlignment="Left" />
+          </StackPanel>
+
+          <!-- The promise the whole wizard is built around. -->
+          <Border Classes="reassure">
+            <Grid ColumnDefinitions="Auto,8,*">
+              <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}" Width="11" Height="11"
+                        VerticalAlignment="Top" Margin="0,2,0,0"
+                        Foreground="{DynamicResource RmSuccessBrush}" />
+              <StackPanel Grid.Column="2" Spacing="2">
+                <TextBlock Text="Nothing is written yet." Classes="pri" FontWeight="SemiBold" />
+                <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="RimManager will import your current load order as snapshot #1, so your first Apply is always reversible. Import runs read-only." />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ======================== STEP 3 · Modlist ======================== -->
+      <Grid IsVisible="{Binding IsModlist}" ColumnDefinitions="*,16,320" Margin="24,20">
+
+        <StackPanel Grid.Column="0" Spacing="14">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Modlist name" Classes="small sec" />
+            <TextBox Classes="inset" Text="{Binding ModlistName, Mode=TwoWay}"
+                     AutomationProperties.Name="Modlist name" />
+            <TextBlock Classes="note"
+                       Text="You can have as many as you like — one per playthrough is the common pattern." />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Colour dot" Classes="small sec" />
+              <TextBlock Text="— shown in the toolbar selector" Classes="small ter" />
+            </StackPanel>
+            <!-- The six palette hues. The fill has to be set: the swatch template
+                 paints TemplateBinding Background, and with none supplied all six
+                 rendered as empty grey boxes. -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="0"
+                      Background="{DynamicResource RmPalette0Brush}"
+                      AutomationProperties.Name="Blue"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=0}" />
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="1"
+                      Background="{DynamicResource RmPalette1Brush}"
+                      AutomationProperties.Name="Green"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=1}" />
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="2"
+                      Background="{DynamicResource RmPalette2Brush}"
+                      AutomationProperties.Name="Amber"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=2}" />
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="3"
+                      Background="{DynamicResource RmPalette3Brush}"
+                      AutomationProperties.Name="Red"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=3}" />
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="4"
+                      Background="{DynamicResource RmPalette4Brush}"
+                      AutomationProperties.Name="Violet"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=4}" />
+              <Button Classes="accentSwatch" Click="OnPalette" Tag="5"
+                      Background="{DynamicResource RmPalette5Brush}"
+                      AutomationProperties.Name="Slate"
+                      Classes.selected="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=5}" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <ToggleButton Classes="pill" Content="Group the imported order with separators by load tier"
+                          IsChecked="{Binding GroupWithSeparators, Mode=TwoWay}" />
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Sort the imported order immediately"
+                            IsChecked="{Binding SortImmediately, Mode=TwoWay}" />
+              <!-- Non-negotiable #8, with its reason on screen rather than as an
+                   unexplained default. -->
+              <TextBlock Classes="note"
+                         Text="Off — your existing order works today. Sort when you want to, and compare against snapshot #1." />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- What we imported, measured from the folders just confirmed. -->
+        <Border Grid.Column="2" Classes="card" Padding="12,10">
+          <ScrollViewer>
+            <StackPanel Spacing="10" IsVisible="{Binding HasImport}">
+              <TextBlock Text="WHAT WE IMPORTED" Classes="micro" />
+              <Grid ColumnDefinitions="72,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Active" Classes="small ter" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Classes="small"
+                           Text="{Binding Import.ActiveCount, StringFormat='{}{0} mods, in your current order'}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Inactive" Classes="small ter" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="small"
+                           Text="{Binding Import.InactiveCount, StringFormat='{}{0} installed but off'}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Sources" Classes="small ter" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="small"
+                           Text="{Binding Import.SourcesLine}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Skipped" Classes="small ter"
+                           IsVisible="{Binding HasSkipped}" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Classes="small warn"
+                           IsVisible="{Binding HasSkipped}"
+                           Text="{Binding Import.SkippedFolders, StringFormat='{}{0} folders with no About.xml'}" />
+              </Grid>
+
+              <TextBlock Text="PROPOSED GROUPS" Classes="micro"
+                         IsVisible="{Binding GroupWithSeparators}" />
+              <ItemsControl ItemsSource="{Binding Import.Groups}"
+                            IsVisible="{Binding GroupWithSeparators}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ProposedGroup">
+                    <Grid ColumnDefinitions="3,8,*,Auto" Height="18">
+                      <Border Grid.Column="0" CornerRadius="1"
+                              Classes="paletted"
+                              Classes.p0="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=0}"
+                              Classes.p1="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=1}"
+                              Classes.p2="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=2}"
+                              Classes.p3="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=3}"
+                              Classes.p4="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=4}"
+                              Classes.p5="{Binding PaletteIndex, Converter={StaticResource IsIndex}, ConverterParameter=5}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="small"
+                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="3" Text="{Binding Count}" Classes="mono ter"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="note" IsVisible="{Binding GroupWithSeparators}"
+                         Text="Grouped by the sorter's load tiers, not by theme — most mods land in one group, and that is what the counts show. Rename, recolour or delete any of them later; deleting a separator keeps its mods." />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+
+      <!-- ========================== STEP 4 · Rules ========================== -->
+      <ScrollViewer IsVisible="{Binding IsRules}">
+        <StackPanel Spacing="10" Margin="24,20">
+
+          <Border Classes="optIn" Classes.on="{Binding DownloadCommunityRules}">
+            <Grid ColumnDefinitions="Auto,10,*">
+              <ToggleButton Grid.Column="0" Classes="rowCheck" VerticalAlignment="Top" Margin="0,1,0,0"
+                            IsChecked="{Binding DownloadCommunityRules, Mode=TwoWay}"
+                            AutomationProperties.Name="Download the community rules database" />
+              <StackPanel Grid.Column="2" Spacing="3">
+                <TextBlock Text="Download the community rules database" Classes="pri" FontWeight="SemiBold" />
+                <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="Maintained by the RimSort community. Tells RimManager which mods must load before which, beyond what About.xml declares. Refreshed weekly; you can disable any rule and yours always win." />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Border Classes="optIn" Classes.on="{Binding CheckModUpdatesOnStartup}">
+            <Grid ColumnDefinitions="Auto,10,*">
+              <ToggleButton Grid.Column="0" Classes="rowCheck" VerticalAlignment="Top" Margin="0,1,0,0"
+                            IsChecked="{Binding CheckModUpdatesOnStartup, Mode=TwoWay}"
+                            AutomationProperties.Name="Check for mod updates on startup" />
+              <StackPanel Grid.Column="2" Spacing="3">
+                <TextBlock Text="Check for mod updates on startup" Classes="pri" FontWeight="SemiBold" />
+                <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="{Binding WorkshopItemCount, StringFormat='Queries Steam for your {0} Workshop items. Adds about two seconds to launch.'}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- 2j's third card is crash reporting. RimManager has nowhere to send a
+               crash report, and a consent checkbox for something that does not exist
+               is the one lie a setup wizard must not tell. Disabled with the reason,
+               the same rule R2a set for a menu item with no command. -->
+          <Border Classes="optIn" IsEnabled="False">
+            <Grid ColumnDefinitions="Auto,10,*">
+              <ToggleButton Grid.Column="0" Classes="rowCheck" VerticalAlignment="Top" Margin="0,1,0,0"
+                            IsEnabled="False"
+                            AutomationProperties.Name="Send anonymous crash reports" />
+              <StackPanel Grid.Column="2" Spacing="3">
+                <TextBlock Text="Send anonymous crash reports" Classes="pri" FontWeight="SemiBold" />
+                <!-- D6 · the row is "Copy diagnostics bundle" (ShortcutTable), not
+                     "Diagnostics report". This is the disabled-with-reason crash card —
+                     the one card whose whole job is honesty about what the app can and
+                     cannot do — so a menu path that does not exist is the worst possible
+                     place for it. -->
+                <TextBlock Classes="small ter" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="Not available — RimManager has no crash-reporting service to send to, so there is nothing to consent to yet. Diagnostics stay on your machine; Help ▸ Copy diagnostics bundle gathers them when you want to attach one." />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Border Classes="card" Padding="14,12" Margin="0,6,0,0">
+            <Grid ColumnDefinitions="*,16,260">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="You are set up." Classes="pri" FontWeight="SemiBold" />
+                <TextBlock Classes="small sec" TextWrapping="Wrap" HorizontalAlignment="Left"
+                           Text="{Binding SetUpSummary}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="4">
+                <TextBlock Text="SUGGESTED NEXT" Classes="micro" />
+                <TextBlock Classes="small ter" Text="1 · Run Sort and compare with snapshot #1" />
+                <TextBlock Classes="small ter" Text="2 · Check the warnings we found" />
+                <TextBlock Classes="small ter" Text="3 · Apply when the diff looks right" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+</Window>

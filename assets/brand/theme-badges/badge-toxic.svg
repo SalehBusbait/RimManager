@@ -1,0 +1,30 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Toxic Fallout theme</title>
+<defs><clipPath id="badge-toxic"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#171D14"></rect>
+<g clip-path="url(#badge-toxic)">
+<ellipse cx="112" cy="78" rx="64" ry="17" fill="#A9D34A" opacity="0.12"></ellipse>
+<ellipse cx="212" cy="64" rx="66" ry="19" fill="#A9D34A" opacity="0.1"></ellipse>
+<ellipse cx="160" cy="102" rx="80" ry="15" fill="#A9D34A" opacity="0.09"></ellipse>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#7FA33A" stroke-width="1.5" opacity=".4"></circle>
+<circle cx="160" cy="470" r="260" fill="#333D26"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#A9D34A" stroke-width="2.5"></circle>
+<path d="M84 230 L106 214 L128 230 Z" fill="#27301D"></path>
+<path d="M196 228 L216 213 L236 228 Z" fill="#27301D"></path>
+<circle cx="88" cy="82" r="2" fill="#A9D34A" opacity="0.75"></circle>
+<circle cx="236" cy="72" r="1.6" fill="#A9D34A" opacity="0.55"></circle>
+<circle cx="108" cy="112" r="1.4" fill="#A9D34A" opacity="0.45"></circle>
+<circle cx="234" cy="182" r="1.8" fill="#A9D34A" opacity="0.6"></circle>
+<circle cx="76" cy="160" r="1.3" fill="#A9D34A" opacity="0.4"></circle>
+<circle cx="190" cy="140" r="1.4" fill="#A9D34A" opacity="0.45"></circle>
+<circle cx="126" cy="146" r="1.2" fill="#A9D34A" opacity="0.4"></circle>
+<path d="M150 224 L150 183" fill="none" stroke="#97A188" stroke-width="5" stroke-linecap="round"></path>
+<path d="M150 202 L134 188" fill="none" stroke="#97A188" stroke-width="3.5" stroke-linecap="round"></path>
+<path d="M134 188 L127 178" fill="none" stroke="#97A188" stroke-width="2" stroke-linecap="round"></path>
+<path d="M150 192 L168 176" fill="none" stroke="#97A188" stroke-width="3.5" stroke-linecap="round"></path>
+<path d="M168 176 L175 166" fill="none" stroke="#97A188" stroke-width="2" stroke-linecap="round"></path>
+<path d="M150 184 L140 172" fill="none" stroke="#97A188" stroke-width="2.5" stroke-linecap="round"></path>
+<path d="M150 183 L154 169" fill="none" stroke="#97A188" stroke-width="2.5" stroke-linecap="round"></path>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#39452A" stroke-width="2"></rect>
+</svg>

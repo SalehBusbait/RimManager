@@ -1,0 +1,112 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.XmlDiffWindow"
+        x:DataType="vm:XmlDiffViewModel"
+        Title="XML diff"
+        Width="860" Height="520"
+        MinWidth="640" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    3c · the two-up XML diff viewer. 860x520, NON-modal and read-only.
+
+    Non-modal because it is a reference you keep open while you reorder the chain
+    behind it — only three surfaces in the whole app are modal (#4), and this is not
+    one of them.
+
+    Read-only because editing a mod's XML from a mod manager puts the user's change
+    one Workshop update away from being silently overwritten.
+  -->
+  <DockPanel>
+
+    <!-- Header: what is being compared, plus the two controls that belong to the
+         whole viewer rather than to either side. -->
+    <Border DockPanel.Dock="Top" Height="40" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,8,Auto,*,Auto,8,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding Target}" Classes="title"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding Subtitle}" Classes="small ter"
+                   VerticalAlignment="Center" />
+        <CheckBox Classes="rm" Grid.Column="4" Content="Changed only" VerticalAlignment="Center"
+                  IsChecked="{Binding ChangedOnly, Mode=TwoWay}"
+                  ToolTip.Tip="Collapse long runs of identical lines" />
+        <Button Grid.Column="6" Classes="quiet" Content="Copy" Click="OnCopy"
+                ToolTip.Tip="Copy the whole diff as text" />
+      </Grid>
+    </Border>
+
+    <!-- Footer: the counts, and the two actions that leave the viewer. -->
+    <Border DockPanel.Dock="Bottom" Height="{DynamicResource RmDockFooterHeight}" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding Summary}" Classes="mono ter"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Classes="small ter" VerticalAlignment="Center"
+                   Text="Read-only · the file on disk is untouched" />
+      </Grid>
+    </Border>
+
+    <!-- The two panes. Both scroll together vertically: an unsynchronised two-up view
+         is two views, and the alignment the diff computes is the only reason the
+         panes are side by side at all. -->
+    <Grid ColumnDefinitions="*,1,*">
+      <DockPanel Grid.Column="0">
+        <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                     Fill="{DynamicResource RmTextTertiaryBrush}" />
+            <TextBlock Text="{Binding LeftHeader}" Classes="small sec" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <ScrollViewer x:Name="LeftScroller" HorizontalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Left}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DiffRow">
+                <Border Padding="8,0" Classes.diffRemove="{Binding IsRemoved}">
+                  <Grid ColumnDefinitions="30,8,*">
+                    <TextBlock Grid.Column="0" Text="{Binding Number}" Classes="idx" />
+                    <TextBlock Grid.Column="2" Text="{Binding Text}" Classes="mono sec"
+                               Classes.bad="{Binding IsRemoved}"
+                               Classes.ter="{Binding IsCollapsed}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+
+      <Border Grid.Column="1" Background="{DynamicResource RmBorderSubtleBrush}" />
+
+      <DockPanel Grid.Column="2">
+        <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                     Fill="{DynamicResource RmSuccessBrush}" />
+            <TextBlock Text="{Binding RightHeader}" Classes="small sec" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <ScrollViewer x:Name="RightScroller" HorizontalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Right}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DiffRow">
+                <Border Padding="8,0" Classes.diffAdd="{Binding IsAdded}">
+                  <Grid ColumnDefinitions="30,8,*">
+                    <TextBlock Grid.Column="0" Text="{Binding Number}" Classes="idx" />
+                    <TextBlock Grid.Column="2" Text="{Binding Text}" Classes="mono sec"
+                               Classes.ok="{Binding IsAdded}"
+                               Classes.ter="{Binding IsCollapsed}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>

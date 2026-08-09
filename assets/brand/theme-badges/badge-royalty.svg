@@ -1,0 +1,33 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Imperial Court theme</title>
+<defs><clipPath id="badge-royalty"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#251B3B"></rect>
+<g clip-path="url(#badge-royalty)">
+<path d="M117 105 Q160 80 203 105" fill="none" stroke="#9FC3E8" stroke-width="2" stroke-linecap="round" opacity="0.25"></path>
+<path d="M126 118 Q160 98 194 118" fill="none" stroke="#9FC3E8" stroke-width="2.5" stroke-linecap="round" opacity="0.45"></path>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#8F76C9" stroke-width="1.5" opacity=".4"></circle>
+<circle cx="160" cy="470" r="260" fill="#37294F"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#D9B45B" stroke-width="2.5"></circle>
+<path d="M100 227 Q107 213 119 207" fill="none" stroke="#C7A452" stroke-width="2"></path>
+<circle cx="103" cy="221" r="2" fill="#C7A452" opacity="0.85"></circle>
+<circle cx="109" cy="214" r="2" fill="#C7A452" opacity="0.85"></circle>
+<circle cx="116" cy="209" r="2" fill="#C7A452" opacity="0.85"></circle>
+<path d="M220 227 Q213 213 201 207" fill="none" stroke="#C7A452" stroke-width="2"></path>
+<circle cx="217" cy="221" r="2" fill="#C7A452" opacity="0.85"></circle>
+<circle cx="211" cy="214" r="2" fill="#C7A452" opacity="0.85"></circle>
+<circle cx="204" cy="209" r="2" fill="#C7A452" opacity="0.85"></circle>
+<circle cx="88" cy="82" r="2" fill="#E8CE8E" opacity="0.75"></circle>
+<circle cx="236" cy="72" r="1.6" fill="#E8CE8E" opacity="0.55"></circle>
+<circle cx="108" cy="112" r="1.4" fill="#E8CE8E" opacity="0.45"></circle>
+<circle cx="234" cy="182" r="1.8" fill="#E8CE8E" opacity="0.6"></circle>
+<circle cx="76" cy="160" r="1.3" fill="#E8CE8E" opacity="0.4"></circle>
+<circle cx="160" cy="158" r="42" fill="#D9B45B" opacity="0.07"></circle>
+<path d="M136 170 L136 146 L149 161 L160 140 L171 161 L184 146 L184 170 Z" fill="#D9B45B"></path>
+<rect x="132" y="170" width="56" height="13" rx="4" fill="#E4C36A"></rect>
+<circle cx="146" cy="176.5" r="2.8" fill="#6D4AA8"></circle>
+<circle cx="160" cy="176.5" r="3.2" fill="#6D4AA8"></circle>
+<circle cx="174" cy="176.5" r="2.8" fill="#6D4AA8"></circle>
+<circle cx="160" cy="137" r="3.5" fill="#9FC3E8"></circle>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#4A3A6E" stroke-width="2"></rect>
+</svg>

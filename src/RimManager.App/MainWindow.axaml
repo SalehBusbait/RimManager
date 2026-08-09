@@ -1,0 +1,2234 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        xmlns:dm="using:RimManager.Core.Domain"
+        xmlns:vd="using:RimManager.Core.Validation"
+        xmlns:diag="using:RimManager.Core.Diagnostics"
+        xmlns:conv="using:RimManager.App.Converters"
+        xmlns:adc="using:Avalonia.Data.Converters"
+        xmlns:mods="using:RimManager.App.Views.Mods"
+        xmlns:shell="using:RimManager.App.Views.Shell"
+        xmlns:dock="using:RimManager.App.Views.Dock"
+        x:Class="RimManager.App.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="RimManager"
+        Icon="avares://RimManager/Assets/app-mark.png"
+        Width="1180" Height="800"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+
+  <!--
+    Window key bindings, built from the ONE shortcut table (guide §6) rather than
+    hard-coded gestures, so they cannot disagree with the menu labels or the ⌘/
+    sheet. These were lost in R0 along with Window.Styles below.
+  -->
+  <!--
+    NO Window.KeyBindings here. They are GENERATED from ShortcutTable in code-behind
+    (Shortcuts/ShortcutBindings), which is the rule R0 set for the menus, the palette
+    and the ⌘/ sheet and then did not apply to the bindings themselves.
+
+    Eleven were written out by hand while the table grew to forty-six, and Avalonia's
+    MenuItem.InputGesture only DRAWS a gesture — it invokes nothing — so seven
+    shortcuts were printed in the menus, backed by a working command, and did nothing
+    when pressed. Ctrl+3 was an eighth.
+  -->
+
+  <Window.Styles>
+    <!--
+      THE ROW VISIBILITY BINDING. Search and the filter chips work by setting
+      IsFilteredOut on each row; this is what turns that into a hidden row. Without
+      it the lists stay full while the empty state truthfully reports "nothing
+      matches", which is what the panes did between R0 and now.
+
+      Drag state is NOT set here: "Classes.x" is an element attribute, not a style
+      setter, and writing one silently disables the rest of the block. It rides a
+      Border inside the row templates instead.
+    -->
+    <Style Selector="ListBoxItem" x:DataType="vm:RowViewModel">
+      <Setter Property="IsVisible" Value="{Binding IsRowVisible}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- Shared row templates: the two panes and (later) the palette render a
+             mod identically because they build from one dictionary. -->
+        <ResourceInclude Source="avares://RimManager/Views/Mods/ModRowTemplates.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- The active pane is a flat list of mods AND separators; this picks the
+           template per row (guide §4). Collapse stays a filter over the flat list. -->
+      <mods:LoadOrderRowSelector x:Key="LoadOrderRow"
+                                 ModTemplate="{StaticResource ModRowTemplate}"
+                                 SeparatorTemplate="{StaticResource SeparatorRowTemplate}" />
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <!--
+    2g · UI scale. Avalonia has no scale property, so the whole window is measured
+    through a LayoutTransformControl — LAYOUT, not render: the app is laid out larger
+    and re-rasterised, so text stays sharp instead of being a magnified bitmap. That is
+    what lets the design call it restart-free.
+
+    It wraps the ROOT, not the DockPanel, so the palette overlay and the drag-ghost
+    canvas scale with everything else and stay in one coordinate space.
+  -->
+  <LayoutTransformControl x:Name="UiScaleHost">
+  <Panel>
+  <DockPanel>
+
+    <!-- Band 1 · menu bar (28px) — generated from ShortcutTable, see MenuBarView. -->
+    <shell:MenuBarView DockPanel.Dock="Top" />
+
+    <!-- Band 2 · toolbar (36px) — six controls + four flyouts, see ToolbarView. -->
+    <shell:ToolbarView DockPanel.Dock="Top" />
+
+    <!-- Apply, as an inline 44px bar. Never a modal (#4) - and directly UNDER the
+         toolbar, because that is where the button that raises it lives.
+
+         It used to dock at the bottom, below the dock and above the status bar, which
+         put the question roughly seven hundred pixels from the "Apply to game" button
+         that asked it: press at the top, answer at the floor, and on a tall window the
+         answer could be off screen entirely on a collapsed dock. The offline strip
+         already established this position for "something the app needs to tell you
+         about right now", and this is that. It also no longer appears on a routine
+         apply at all - see ApplyConcerns. -->
+    <shell:CommitBarView DockPanel.Dock="Top" />
+
+    <!-- 2k · the offline strip. Docked under the toolbar and collapsed to nothing when
+         there is nothing wrong, so it pushes the lists down only while it is saying
+         something. Never a window: a network problem must not take the app away. -->
+    <shell:OfflineStripView DockPanel.Dock="Top" />
+
+    <!-- N5b · ModsConfig.xml was rewritten by something other than RimManager. Same
+         band and rules again. Above the mod-changes strip because this state has a
+         wrong answer (the next Apply overwrites what the game wrote) and that one
+         does not. -->
+    <shell:GameMovedStripView DockPanel.Dock="Top" />
+
+    <!-- N5a4 · a mod folder arrived or left while the window was open. Same band and
+         same rules as the offline strip above it, collapsed to nothing when there is
+         nothing to say. Below it rather than above, because a network failure changes
+         what the app can do and this only changes what it knows. -->
+    <shell:ModChangesStripView DockPanel.Dock="Top" />
+
+    <!-- NF-10 · a subscribed Workshop item's payload is a mod list. Last of the band:
+         info tone with no wrong answer — the item is harmless wherever it sits. -->
+    <shell:RwListOfferStripView DockPanel.Dock="Top" />
+
+    <!-- Band 5 · status bar (24px) — five fixed zones, see StatusBarView. -->
+    <shell:StatusBarView DockPanel.Dock="Bottom" />
+
+    <!--
+      Bands 3 and 4: the three panes, the dock's height grip, and the dock region.
+
+      One Grid rather than three more DockPanel.Dock="Bottom" children, because a
+      GridSplitter only ever resizes the rows either side of itself. The 26px strip
+      has to stay visible when the dock is closed, so the strip and the dock body
+      share the bottom row and the grip sits above both — dragging it grows the body
+      and the strip rides along, which is what the eye expects from the boundary
+      between the lists and the panel.
+
+      Closed, DockRow is Auto and the row is exactly the 26px strip.
+    -->
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" MinHeight="180" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="{Binding DockRow, Mode=TwoWay}" />
+      </Grid.RowDefinitions>
+
+      <!-- Center: three panes; the dock collapses so the panes get full height by default -->
+      <Grid Grid.Row="0" Margin="6">
+
+        <!--
+          NOT a 50/50 split. Measured off 1a at 1440: inactive 300, active 790, mod
+          info 344 — the load order gets about 2.6x the inactive pane, because it is
+          the product and it is the one carrying six columns.
+
+          Equal halves left the NAME column 30px wide at the window's own default
+          size, with every mod name rendered as three characters and an ellipsis.
+        -->
+        <Grid ColumnDefinitions="0.38*,6,1*,6,344">
+
+          <!-- Inactive pane -->
+          <!-- SizeChanged is what drives this pane's columns (N1). Its OWN width, not
+               the window's: the splitter beside it is user-draggable, so the window
+               says nothing about how much room this list has. Measured here rather
+               than bound because the value has to cross into the view model, and the
+               Border sits INSIDE the UI-scale transform, so its bounds are already in
+               layout units and need no division. -->
+          <Border Grid.Column="0" x:Name="InactivePane"
+                  Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                  BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="1" CornerRadius="4"
+                  ClipToBounds="True">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Classes="paneHeader">
+                <Grid ColumnDefinitions="Auto,8,Auto,*,Auto">
+                  <TextBlock Grid.Column="0" Text="INACTIVE" FontSize="{DynamicResource RmFontSizeSmall}"
+                             FontWeight="SemiBold" Classes="sec" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding InactiveCount}" Classes="mono ter"
+                             VerticalAlignment="Center" />
+                  <!-- README draws "current sort (Name ▲)" here, and that is all this is
+                       now: a readout. It used to open a sort menu, but the column
+                       headings below became clickable in N1, and two controls for one
+                       gesture 40px apart in the same band is the redundancy N4's audit
+                       exists to remove. The headings are Tab-reachable, so nothing
+                       became mouse-only. -->
+                  <TextBlock Grid.Column="4" Text="{Binding InactiveSortText}" Classes="small ter"
+                             VerticalAlignment="Center"
+                             ToolTip.Tip="Click a column heading to sort; click it again to reverse" />
+                </Grid>
+              </Border>
+
+              <!-- Column header row, 22px (N1 · UI-6.1). Unlike the ACTIVE pane's
+                   legend, these ARE sort controls: this pane is a set rather than a
+                   sequence, so ordering it costs nothing and non-negotiable #3 permits
+                   sorting here and only here.
+
+                   Column-for-column identical to InactiveModRowTemplate, and pinned as
+                   such by AdaptiveLayoutMarkupTests — the active header drifted 14px
+                   from its rows once already, and it was invisible until someone read a
+                   value against the wrong heading.
+
+                   2k: gone below 900px, where every optional column collapses and a
+                   legend would be heading two columns and a gap. -->
+              <Border DockPanel.Dock="Top" Classes="columnHeader"
+                      IsVisible="{Binding !IsSegmentedLayout}">
+                <Grid>
+                  <!-- The 3px stripe column is gone (v2 §4A.1): pills live in the
+                       NAME cell of the rows, so the header loses the same columns
+                       the rows lost — parity is the AdaptiveLayoutMarkupTests pin. -->
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding SourceColumnWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="{Binding PackageIdColumnWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="{Binding AuthorColumnWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="{Binding VersionColumnWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="{Binding RowChevronWidth}" />
+                  </Grid.ColumnDefinitions>
+
+                  <!-- Each heading is ONE TextBlock whose text already carries the
+                       arrow. A label plus a separate arrow element would need a
+                       StackPanel or an Auto Grid column, and both measure their
+                       children at infinite width inside the flexible NAME cell — the
+                       trap LayoutTrapTests exists for, where TextTrimming never engages
+                       and the text paints over its neighbour. -->
+                  <Button Grid.Column="0" Classes="columnSort" Content="{Binding SourceHeader}"
+                          Command="{Binding SortInactiveByCommand}" CommandParameter="Source"
+                          AutomationProperties.Name="Sort by source" />
+                  <Button Grid.Column="2" Classes="columnSort" Content="{Binding NameHeader}"
+                          Command="{Binding SortInactiveByCommand}" CommandParameter="Name"
+                          AutomationProperties.Name="Sort by name" />
+                  <Button Grid.Column="4" Classes="columnSort" Content="{Binding PackageIdHeader}"
+                          Command="{Binding SortInactiveByCommand}" CommandParameter="PackageId"
+                          AutomationProperties.Name="Sort by packageId" />
+                  <Button Grid.Column="6" Classes="columnSort" Content="{Binding AuthorHeader}"
+                          Command="{Binding SortInactiveByCommand}" CommandParameter="Author"
+                          AutomationProperties.Name="Sort by author" />
+                  <Button Grid.Column="8" Classes="columnSort" Content="{Binding VersionHeader}"
+                          Command="{Binding SortInactiveByCommand}" CommandParameter="Version"
+                          AutomationProperties.Name="Sort by version" />
+                </Grid>
+              </Border>
+              <!-- Footer 30px. Activate lives HERE, next to the selection it acts on —
+                   it moved off the toolbar for exactly that reason (1a). -->
+              <Border DockPanel.Dock="Bottom" Classes="paneFooter">
+                <Grid ColumnDefinitions="Auto,Auto,*">
+                  <!-- 2k: hidden below 900, where the row menu is the route across the
+                       two lists. The selection count stays: it is the one thing here
+                       that reports rather than acts. -->
+                  <!-- Content, at last (C1). This shipped as an EMPTY square: wired,
+                       clickable, working, and saying nothing — for as long as the pane
+                       footers have existed. Text rather than an icon because every
+                       sibling here is text ("Activate all", "+ Separator", "Collapse
+                       all"), and one icon among them would be its own inconsistency.
+                       DeadControlTests could not see it: the guard accepts x:Name as
+                       proof a control is alive, and asks nothing about legibility. -->
+                  <Button Grid.Column="0" x:Name="ActivateBtn" Classes="quiet"
+                          Content="Activate"
+                          IsVisible="{Binding !IsSegmentedLayout}"
+                          ToolTip.Tip="Move the selected mods into the load order" />
+                  <!-- Was disabled with no reason given, which is the one thing a
+                       disabled control must never be. ActivateMods already exists. -->
+                  <Button Grid.Column="1" Classes="quiet" Content="Activate all" Margin="6,0,0,0"
+                          IsVisible="{Binding !IsSegmentedLayout}"
+                          Command="{Binding ActivateAllCommand}"
+                          ToolTip.Tip="Move every inactive mod into the load order" />
+                  <TextBlock Grid.Column="2" Classes="mono ter" HorizontalAlignment="Right"
+                             VerticalAlignment="Center"
+                             Text="{Binding SelectionCount, StringFormat='{}{0} selected'}" />
+                </Grid>
+              </Border>
+              <Grid>
+                <ListBox x:Name="InactiveList" Tag="inactive" Classes="rows" SelectionMode="Multiple"
+                         AutomationProperties.Name="Inactive mods"
+                         Classes.zebra="{Binding ZebraStriping}"
+                         DragDrop.AllowDrop="True" ItemsSource="{Binding InactiveRows}"
+                         ItemTemplate="{StaticResource InactiveModRowTemplate}">
+                  <ListBox.ContextMenu>
+                    <!-- 2i-8 · 280px. The header names what the actions will apply to,
+                         because a right-click can land on a row outside the selection and
+                         "Delete from disk" must never be ambiguous about its target. -->
+                    <ContextMenu MinWidth="280" Tag="inactive" Opening="OnRowContextOpening">
+                      <MenuItem Header="{Binding RowContext.Header}" IsEnabled="False" />
+                      <Separator />
+                      <MenuItem Header="Deactivate" IsVisible="{Binding RowContext.CanDeactivate}"
+                                Command="{Binding ContextDeactivateCommand}" />
+                      <MenuItem Header="Activate" IsVisible="{Binding RowContext.CanActivate}"
+                                Command="{Binding ContextActivateCommand}" />
+                      <MenuItem Header="Toggle favourite"
+                                Command="{Binding ContextToggleFavouriteCommand}" />
+                      <Separator />
+                      <MenuItem Header="Open folder" IsVisible="{Binding RowContext.CanOpenFolder}"
+                                Command="{Binding ContextOpenFolderCommand}" />
+                      <MenuItem Header="Open on Workshop" IsVisible="{Binding RowContext.CanOpenWorkshop}"
+                                Command="{Binding ContextOpenWorkshopCommand}" />
+                      <!-- NF-10 · the standing re-offer for a mod-list item, after its
+                           one strip offer. Hidden elsewhere: a dead "list" action on
+                           an ordinary mod teaches nothing. -->
+                      <MenuItem Header="Import mod list…" IsVisible="{Binding RowContext.CanImportRwList}"
+                                Command="{Binding ContextImportRwListCommand}"
+                                ToolTip.Tip="This item's payload is a mod list — create a new modlist from it" />
+                      <MenuItem Header="Copy packageId"
+                                Command="{Binding ContextCopyPackageIdCommand}" />
+                      <Separator />
+                      <!-- Unsubscribing needs the Steamworks SDK against RimWorld's AppID,
+                           which this project deliberately does not use. The Workshop page
+                           is where it can actually be done, so that is what is offered. -->
+                      <MenuItem Header="Unsubscribe on Workshop…"
+                                IsVisible="{Binding RowContext.CanOpenWorkshop}"
+                                Command="{Binding ContextOpenWorkshopCommand}" />
+                      <MenuItem Header="Delete from disk…" Classes="danger"
+                                IsVisible="{Binding RowContext.CanDeleteFromDisk}"
+                                Command="{Binding ContextDeleteFromDiskCommand}" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+                <!-- Insertion indicator (3a): a 2px line with an 8px LEADING DOT so
+                     it stays visible against a selected row, plus a target-index pill
+                     on the right. It sits BETWEEN rows — never a "drop into"
+                     highlight, because in an ordered list there is no "into".
+                     Invalid drops keep the line and recolour it, because the user
+                     must see WHERE they aimed and WHY it failed, not nothing.
+
+                     The root is 18px tall, not 2: the pill is taller than the line and
+                     an 8px root clips it down to bare text. The line is centred inside
+                     that band, and the whole thing is offset by half its height so the
+                     LINE lands on the boundary. -->
+
+                <!-- Empty states (3e). Three shapes, and every one names a next
+                     action — "no illustrations, no Oops, never a bare No items". -->
+
+                <!-- LOAD FAILED. Declared FIRST so it wins the pane: after a failed scan
+                     the counts were never computed, so every count-derived state below
+                     would be reasoning from numbers that mean nothing — which is how a
+                     blanked pane came to claim "Everything is active". -->
+                <StackPanel IsVisible="{Binding LoadFailed}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <PathIcon Data="{StaticResource RmIconWarning}" Width="18" Height="18"
+                            HorizontalAlignment="Center"
+                            Foreground="{DynamicResource RmDangerBrush}" />
+                  <TextBlock Text="The scan did not finish" Classes="title"
+                             HorizontalAlignment="Center" />
+                  <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="Nothing was read, so this list is empty rather than genuinely so. The status bar and the Activity tab say what went wrong." />
+                  <Button Classes="quiet" Content="Try again" HorizontalAlignment="Center"
+                          Command="{Binding RefreshCommand}" />
+                </StackPanel>
+
+                <!-- NOT YET: nothing scanned. States the cost and offers the action;
+                     claiming success here would be a lie. -->
+                <StackPanel IsVisible="{Binding InactiveIsEmptyNotYet}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <Border Width="26" Height="26" CornerRadius="{DynamicResource RmRadiusControl}"
+                          BorderThickness="1" HorizontalAlignment="Center"
+                          BorderBrush="{DynamicResource RmBorderStrongBrush}" />
+                  <TextBlock Text="No mods found" Classes="title" HorizontalAlignment="Center" />
+                  <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="The folders are readable but contain nothing with an About.xml. Only Core and your DLC are active." />
+                  <!-- The tooltip said "Arrives with Settings (R6)". Settings shipped. -->
+                  <Button Classes="quiet" Content="Check paths" HorizontalAlignment="Center"
+                          Command="{Binding OpenSettingsCommand}"
+                          ToolTip.Tip="Open Settings to check where RimManager is looking" />
+                </StackPanel>
+
+                <!-- SUCCESS: confirms what was checked, and offers the way back. -->
+                <StackPanel IsVisible="{Binding InactiveIsEmptySuccess}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <PathIcon Data="{StaticResource RmIconCheck}" Width="18" Height="18"
+                            HorizontalAlignment="Center"
+                            Foreground="{DynamicResource RmSuccessBrush}" />
+                  <TextBlock Text="Everything is active" Classes="title" HorizontalAlignment="Center" />
+                  <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="Every installed mod is in your load order. Drag rows here to deactivate them without uninstalling." />
+                </StackPanel>
+
+                <!-- FILTERED OUT: names every filter still narrowing the view,
+                     including ones the user has forgotten, and offers to lift them. -->
+                <StackPanel IsVisible="{Binding InactiveIsEmptyFiltered}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <TextBlock Text="Nothing matches these filters" Classes="title"
+                             HorizontalAlignment="Center" />
+                  <TextBlock Text="{Binding FilterSummary}" Classes="small ter" TextWrapping="Wrap"
+                             TextAlignment="Center" />
+                  <TextBlock Text="{Binding InactiveHiddenText}" Classes="small ter"
+                             TextAlignment="Center" HorizontalAlignment="Center" />
+                  <Button Classes="quiet" Content="Clear filters" HorizontalAlignment="Center"
+                          Command="{Binding ClearFiltersCommand}" />
+                </StackPanel>
+
+                <Grid x:Name="InactiveDropLine" IsVisible="False" IsHitTestVisible="False"
+                      VerticalAlignment="Top" HorizontalAlignment="Stretch" Height="18"
+                      ColumnDefinitions="8,*,Auto">
+                  <Ellipse Grid.Column="0" x:Name="InactiveDropLineDot" Width="8" Height="8"
+                           VerticalAlignment="Center"
+                           Fill="{DynamicResource RmAccentBrush}" />
+                  <Border Grid.Column="1" x:Name="InactiveDropLineLine" Height="2" VerticalAlignment="Center"
+                          Background="{DynamicResource RmAccentBrush}" />
+                  <Border Grid.Column="2" x:Name="InactiveDropLinePill" VerticalAlignment="Center" Margin="6,0,4,0"
+                          CornerRadius="{DynamicResource RmRadiusBadge}" Padding="5,1"
+                          Background="{DynamicResource RmAccentBrush}">
+                    <TextBlock x:Name="InactiveDropLineText" Classes="mono"
+                               Foreground="{DynamicResource RmOnAccentBrush}" />
+                  </Border>
+                </Grid>
+              </Grid>
+            </DockPanel>
+          </Border>
+
+          <!-- Classes="pane", never local values: the local transparent Background
+               outranked any style forever, which is why the splitter could never
+               gain a hover state (T2 gives the class one). -->
+          <GridSplitter Grid.Column="1" x:Name="PaneSplitter" Classes="pane"
+                        HorizontalAlignment="Center" />
+
+          <!-- Active pane -->
+          <Border Grid.Column="2" Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                  BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="1" CornerRadius="4"
+                  ClipToBounds="True">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Classes="paneHeader">
+                <Grid ColumnDefinitions="Auto,8,Auto,*,Auto,6,Auto">
+                  <TextBlock Grid.Column="0" Text="ACTIVE LOAD ORDER"
+                             FontSize="{DynamicResource RmFontSizeSmall}" FontWeight="SemiBold"
+                             Classes="sec" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding ActiveSummary}" Classes="mono ter"
+                             VerticalAlignment="Center" />
+                  <!-- The "manual" badge is DELETED (T6): it labelled the only state
+                       the pane ever has — the active list is never column-sortable
+                       (#3), so a badge distinguishing "manual" from nothing was a
+                       claim with no alternative. -->
+                  <TextBlock Grid.Column="4" Text="Sorted by load order" Classes="small ter"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+              <!-- Column header row, 22px. This is a LEGEND and a column-picker
+                   target, NOT a sort control: there is no sorted view of the active
+                   list, not even a temporary one, because the list IS the load order
+                   and a mode you can enter and forget will eventually receive a drag
+                   (#3). Finding things is search / tag filter / ⌘K. -->
+              <!-- 2k: gone below 900px. A legend for columns that are not on screen
+                   is a heading for nothing. -->
+              <Border DockPanel.Dock="Top" Classes="columnHeader"
+                      IsVisible="{Binding !IsSegmentedLayout}">
+                <!--
+                  The four adaptive widths are BOUND to the same view-model properties
+                  the row template binds, not repeated as literals. They were literals
+                  until the R9 hand review, and the row template grew a sixteenth column
+                  (the info chevron) that this legend never got: between 900 and 1150px
+                  the chevron is 14px wide, so every heading from PACKAGEID rightwards
+                  sat 14px to the right of the column it names. Sharing the source is
+                  what stops a header and its rows drifting again.
+                -->
+                <Grid>
+                  <!-- The 3px stripe column is gone (v2 §4A.1) — the header mirrors
+                       the row template column for column, always. -->
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="{Binding RowPackageIdWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="{Binding RowVersionWidth}" />
+                    <ColumnDefinition Width="7" />
+                    <!-- 10 · the ⚡ conflict badge column (N6): bolt + direction mark,
+                         20px. The heading is the LEGEND BUTTON (v2 S-LEGEND) — the
+                         learnable surface the badge grammar was missing. -->
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="7" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="{Binding RowChevronWidth}" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="#" Classes="micro" HorizontalAlignment="Right"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="SRC" Classes="micro" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="4" Text="NAME" Classes="micro" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="6" Text="PACKAGEID" Classes="micro" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="8" Text="VER" Classes="micro" VerticalAlignment="Center" />
+                  <Button Grid.Column="10" Classes="affordance" Padding="0"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          ToolTip.Tip="What the conflict marks mean"
+                          AutomationProperties.Name="Conflict badge legend">
+                    <PathIcon Data="{StaticResource RmIconConflict}" Width="9" Height="9" />
+                    <Button.Flyout>
+                      <Flyout Placement="BottomEdgeAlignedRight">
+                        <StackPanel Width="290" Spacing="6" Margin="10,8">
+                          <TextBlock Text="CONFLICT MARKS" Classes="micro" />
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                                      Foreground="{DynamicResource RmWarningBrush}" />
+                            <TextBlock Classes="small sec" Text="Amber bolt — file or def overrides only" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                                      Foreground="{DynamicResource RmHarmonyBrush}" />
+                            <TextBlock Classes="small sec" Text="Blue bolt — Harmony patching involved; every patch runs" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource RmIconOverwriting}" Width="7" Height="7"
+                                      Foreground="{DynamicResource RmSuccessBrush}" />
+                            <TextBlock Classes="small sec" Text="+ this row's contested content survives" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource RmIconOverwritten}" Width="7" Height="7"
+                                      Foreground="{DynamicResource RmDangerBrush}" />
+                            <TextBlock Classes="small sec" Text="− it is discarded (last loaded wins) · both marks = mixed" />
+                          </StackPanel>
+                          <Border Classes="divider" Height="1" Margin="0,2" />
+                          <TextBlock Text="WHILE A MOD IS SELECTED" Classes="micro" />
+                          <!--
+                            E2 · swatches, and no colour names in the copy.
+
+                            This taught "Green wash… Red wash… Blue wash" and was the one
+                            legend line with no sample beside it, while the four above each
+                            sit next to an icon painted in the brush they name. The washes
+                            are re-authored per theme: Imperial Court renders them blue-grey,
+                            purple and violet, so "Green" and "Blue" become the two closest
+                            hues on screen — exactly the pair the sentence asks the reader to
+                            tell apart — and Arid Rim renders "Blue wash" as neutral grey.
+
+                            The swatch carries the same brush the ROW does, so the legend
+                            cannot drift from the paint again. A wide swatch rather than a
+                            7px dot: these are washes behind a whole row, and a tint reads as
+                            almost nothing at dot size. A Grid rather than the horizontal
+                            StackPanels above, because this copy wraps, and a wrapping
+                            TextBlock in a horizontal StackPanel never wraps (LayoutTrapTests).
+                          -->
+                          <Grid ColumnDefinitions="18,7,*" RowDefinitions="Auto,5,Auto,5,Auto">
+                            <Border Grid.Row="0" Grid.Column="0" Height="12" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource RmDiffAddedBrush}"
+                                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                                    BorderThickness="1" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Classes="small sec"
+                                       TextWrapping="Wrap"
+                                       Text="Solid edge — that row beats the selection" />
+
+                            <Border Grid.Row="2" Grid.Column="0" Height="12" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource RmDiffRemovedBrush}"
+                                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                                    BorderThickness="1" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Classes="small sec"
+                                       TextWrapping="Wrap"
+                                       Text="Solid edge — the selection beats it" />
+
+                            <Border Grid.Row="4" Grid.Column="0" Height="12" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource RmHarmonyTintBrush}"
+                                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                                    BorderThickness="1" />
+                            <TextBlock Grid.Row="4" Grid.Column="2" Classes="small sec"
+                                       TextWrapping="Wrap"
+                                       Text="Dashed edge — shares a Harmony target; linked, not ranked, and nobody wins" />
+                          </Grid>
+                        </StackPanel>
+                      </Flyout>
+                    </Button.Flyout>
+                  </Button>
+                </Grid>
+              </Border>
+              <Border DockPanel.Dock="Bottom" Classes="paneFooter">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*">
+                  <!-- 2k: below 900 the footer keeps only the unsaved-changes line.
+                       Cross-list moves happen through the row menu down there, and it
+                       already carries Activate and Deactivate — so nothing is lost. -->
+                  <Button Grid.Column="0" x:Name="DeactivateBtn" Classes="quiet"
+                          Content="Deactivate"
+                          IsVisible="{Binding !IsSegmentedLayout}"
+                          ToolTip.Tip="Move the selected mods out of the load order" />
+                  <Button Grid.Column="1" Classes="quiet" Content="+ Separator" Margin="6,0,0,0"
+                          IsVisible="{Binding !IsSegmentedLayout}"
+                          Command="{Binding AddSeparatorCommand}" />
+                  <!-- Named in the plan as a stray, and it was: disabled since R3 with
+                       nothing saying why. ActiveListOps.ApplyCollapsed already does it. -->
+                  <Button Grid.Column="2" Classes="quiet" Content="Collapse all" Margin="6,0,0,0"
+                          IsVisible="{Binding !IsSegmentedLayout}"
+                          Command="{Binding CollapseAllCommand}"
+                          ToolTip.Tip="Collapse every separator group" />
+                  <!-- The drift display MOVED to the status bar's own zone (S-DRIFT,
+                       UI audit): the pane footer answered "is there anything to
+                       apply" but had no room for the in-sync state, and the status
+                       bar is where the app's other standing facts live. -->
+
+                </Grid>
+              </Border>
+              <Grid>
+                <ListBox x:Name="ActiveList" Tag="active" Classes="rows" SelectionMode="Multiple"
+                         AutomationProperties.Name="Active load order"
+                       Classes.zebra="{Binding ZebraStriping}"
+                         DragDrop.AllowDrop="True" ItemsSource="{Binding ActiveRows}"
+                         ItemTemplate="{StaticResource LoadOrderRow}">
+                  <ListBox.ContextMenu>
+                    <!-- 2i-8 · 280px. The header names what the actions will apply to,
+                         because a right-click can land on a row outside the selection and
+                         "Delete from disk" must never be ambiguous about its target. -->
+                    <ContextMenu MinWidth="280" Tag="active" Opening="OnRowContextOpening">
+                      <MenuItem Header="{Binding RowContext.Header}" IsEnabled="False" />
+                      <Separator />
+                      <MenuItem Header="Deactivate" IsVisible="{Binding RowContext.CanDeactivate}"
+                                Command="{Binding ContextDeactivateCommand}" />
+                      <MenuItem Header="Activate" IsVisible="{Binding RowContext.CanActivate}"
+                                Command="{Binding ContextActivateCommand}" />
+                      <MenuItem Header="Toggle favourite"
+                                Command="{Binding ContextToggleFavouriteCommand}" />
+                      <Separator />
+                      <MenuItem Header="Open folder" IsVisible="{Binding RowContext.CanOpenFolder}"
+                                Command="{Binding ContextOpenFolderCommand}" />
+                      <MenuItem Header="Open on Workshop" IsVisible="{Binding RowContext.CanOpenWorkshop}"
+                                Command="{Binding ContextOpenWorkshopCommand}" />
+                      <!-- NF-10 · the standing re-offer for a mod-list item, after its
+                           one strip offer. Hidden elsewhere: a dead "list" action on
+                           an ordinary mod teaches nothing. -->
+                      <MenuItem Header="Import mod list…" IsVisible="{Binding RowContext.CanImportRwList}"
+                                Command="{Binding ContextImportRwListCommand}"
+                                ToolTip.Tip="This item's payload is a mod list — create a new modlist from it" />
+                      <MenuItem Header="Copy packageId"
+                                Command="{Binding ContextCopyPackageIdCommand}" />
+                      <Separator />
+                      <!-- Unsubscribing needs the Steamworks SDK against RimWorld's AppID,
+                           which this project deliberately does not use. The Workshop page
+                           is where it can actually be done, so that is what is offered. -->
+                      <MenuItem Header="Unsubscribe on Workshop…"
+                                IsVisible="{Binding RowContext.CanOpenWorkshop}"
+                                Command="{Binding ContextOpenWorkshopCommand}" />
+                      <MenuItem Header="Delete from disk…" Classes="danger"
+                                IsVisible="{Binding RowContext.CanDeleteFromDisk}"
+                                Command="{Binding ContextDeleteFromDiskCommand}" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+                <!-- Insertion indicator (3a): a 2px line with an 8px LEADING DOT so
+                     it stays visible against a selected row, plus a target-index pill
+                     on the right. It sits BETWEEN rows — never a "drop into"
+                     highlight, because in an ordered list there is no "into".
+                     Invalid drops keep the line and recolour it, because the user
+                     must see WHERE they aimed and WHY it failed, not nothing.
+
+                     The root is 18px tall, not 2: the pill is taller than the line and
+                     an 8px root clips it down to bare text. The line is centred inside
+                     that band, and the whole thing is offset by half its height so the
+                     LINE lands on the boundary. -->
+
+                <!-- The active list's filtered-out state. Same rule: name the filters
+                     rather than implying the load order is empty. -->
+                <StackPanel IsVisible="{Binding ActiveIsEmptyFiltered}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <TextBlock Text="Nothing matches these filters" Classes="title"
+                             HorizontalAlignment="Center" />
+                  <TextBlock Text="{Binding FilterSummary}" Classes="small ter" TextWrapping="Wrap"
+                             TextAlignment="Center" />
+                  <!-- The count this pane is hiding (C4), on its OWN property:
+                       FilterSummary is bound by both panes, so a count appended there
+                       would show the other pane's number here. -->
+                  <TextBlock Text="{Binding ActiveHiddenText}" Classes="small ter"
+                             TextAlignment="Center" HorizontalAlignment="Center" />
+                  <Button Classes="quiet" Content="Clear filters" HorizontalAlignment="Center"
+                          Command="{Binding ClearFiltersCommand}" />
+                </StackPanel>
+
+                <!-- NOTHING ACTIVE (C2). The active pane had no empty state at all, so
+                     File ▸ New modlist opened on a blank pane: the ACTIVE LOAD ORDER
+                     header and its column legend over nothing, with no sentence and no
+                     next step. Reachable by design, not by accident — CreateAsync stores
+                     ModlistState.Empty, and deactivating every row does the same.
+
+                     Its own property, deliberately NOT the shared ActiveIsEmptySuccess:
+                     EmptyStatePresenter classifies an empty list as Success, whose
+                     inactive-pane wording is "Everything is active" — the exact inverse
+                     of the truth here. A shared name is what would tempt the next author
+                     to reuse the inactive copy.
+
+                     Only ONE card, not two: when nothing is scanned both panes are empty
+                     at once, and a second "No mods found" here would print the same
+                     sentence twice, side by side. -->
+                <StackPanel IsVisible="{Binding ActiveIsEmptyNothingActive}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <Border Width="26" Height="26" CornerRadius="{DynamicResource RmRadiusControl}"
+                          BorderThickness="1" HorizontalAlignment="Center"
+                          BorderBrush="{DynamicResource RmBorderStrongBrush}" />
+                  <TextBlock Text="Nothing is active" Classes="title" HorizontalAlignment="Center" />
+                  <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="This modlist starts from nothing. Drag mods across from Installed, or activate them there — RimWorld's own Core and DLC come in with them." />
+                  <Button Classes="quiet" Content="Activate all" HorizontalAlignment="Center"
+                          Command="{Binding ActivateAllCommand}"
+                          ToolTip.Tip="Move every installed mod into this load order" />
+                </StackPanel>
+
+                <Grid x:Name="ActiveDropLine" IsVisible="False" IsHitTestVisible="False"
+                      VerticalAlignment="Top" HorizontalAlignment="Stretch" Height="18"
+                      ColumnDefinitions="8,*,Auto">
+                  <Ellipse Grid.Column="0" x:Name="ActiveDropLineDot" Width="8" Height="8"
+                           VerticalAlignment="Center"
+                           Fill="{DynamicResource RmAccentBrush}" />
+                  <Border Grid.Column="1" x:Name="ActiveDropLineLine" Height="2" VerticalAlignment="Center"
+                          Background="{DynamicResource RmAccentBrush}" />
+                  <Border Grid.Column="2" x:Name="ActiveDropLinePill" VerticalAlignment="Center" Margin="6,0,4,0"
+                          CornerRadius="{DynamicResource RmRadiusBadge}" Padding="5,1"
+                          Background="{DynamicResource RmAccentBrush}">
+                    <TextBlock x:Name="ActiveDropLineText" Classes="mono"
+                               Foreground="{DynamicResource RmOnAccentBrush}" />
+                  </Border>
+                </Grid>
+              </Grid>
+            </DockPanel>
+          </Border>
+
+          <GridSplitter Grid.Column="3" Classes="pane"
+                        x:Name="InfoPaneSplitter"
+                        HorizontalAlignment="Center" />
+
+          <!--
+            Mod Info pane. Below 1150px (2k) this exact Border is MOVED into the drawer
+            host below — not copied. The design requires the same view and the same
+            scroll position on the way back, and a second ContentControl bound to the
+            same view model would give the same data in a freshly built visual tree,
+            scrolled back to the top.
+          -->
+          <Border Grid.Column="4" x:Name="InfoPane"
+                  Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                  BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="1" CornerRadius="4"
+                  ClipToBounds="True">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Classes="paneHeader">
+                <Grid ColumnDefinitions="*,Auto,6,Auto,4,Auto">
+                  <TextBlock Grid.Column="0" Text="MOD INFO" FontSize="{DynamicResource RmFontSizeSmall}"
+                             FontWeight="SemiBold" Classes="sec" VerticalAlignment="Center" />
+                  <!-- Always rendered at text.tertiary and only brightened, never
+                       hover-revealed (#11): hover-reveal is unusable at 20px rows.
+
+                       It was a Button bound to NOTHING — no command, no click — so the
+                       star rendered, took a click and did nothing, on a pane the user
+                       is looking at whenever they care about a mod. A ToggleButton on
+                       the selected mod's own Favorite, which already persists itself;
+                       1a wants it warning-tinted when set and tertiary when not, which
+                       is a bound class rather than a converter so it survives a theme
+                       flip. Hidden when nothing is selected: there is no mod to
+                       favourite, and a live-looking control over an empty pane is the
+                       thing this audit exists to remove. -->
+                  <ToggleButton Grid.Column="1" Classes="affordance star" Padding="2,0"
+                                IsVisible="{Binding HasSelectedDetail}"
+                                IsChecked="{Binding SelectedDetail.Favorite, Mode=TwoWay}"
+                                AutomationProperties.Name="Toggle favourite"
+                                ToolTip.Tip="Mark this mod a favourite">
+                    <PathIcon Data="{StaticResource RmIconFavorite}" Width="11" Height="11" />
+                  </ToggleButton>
+                  <!-- 2k: the drawer needs a way out that is not a shortcut. Absent
+                       while docked, where there is nothing to close. -->
+                  <Button Grid.Column="5" Classes="affordance" Padding="2,0"
+                          IsVisible="{Binding ShowInfoDrawer}"
+                          Command="{Binding CloseInfoDrawerCommand}"
+                          AutomationProperties.Name="Close the mod info drawer"
+                          ToolTip.Tip="Close · esc">
+                    <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+                  </Button>
+                </Grid>
+              </Border>
+
+              <Panel>
+                <TextBlock Text="Select a mod to see details." VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource RmTextTertiaryBrush}"
+                           IsVisible="{Binding SelectedDetail, Converter={x:Static adc:ObjectConverters.IsNull}}" />
+                <ContentControl Content="{Binding SelectedDetail}" Padding="10"
+                                ContentTemplate="{StaticResource ModDetailTemplate}" />
+              </Panel>
+            </DockPanel>
+          </Border>
+        </Grid>
+
+        <!--
+          2k · breakpoint 1. Below 1150px the InfoPane Border above is re-parented into
+          this host: right-aligned, 340px, shadowed, over the lists. It sits inside the
+          pane grid rather than at window level so it covers the lists and nothing else
+          — the dock, the commit bar and the status bar stay visible and usable, which
+          is the difference between a drawer and a modal.
+
+          Empty and collapsed while the window is wide. The host is what carries the
+          shadow and the width; the pane itself does not know where it is.
+        -->
+        <Border x:Name="InfoDrawerHost" HorizontalAlignment="Right"
+                Width="{Binding InfoOverlayWidth}" IsVisible="{Binding ShowInfoDrawer}"
+                BoxShadow="{DynamicResource RmDrawerShadow}" />
+
+        <!-- 2k · game-not-found covers the three panes and ONLY them: Settings and the
+             menus must stay reachable, because they are how the state gets fixed.
+             The load state used to sit beside it and moved to window level (owner's
+             call, N7d): a half-built UI that still takes clicks invites edits into
+             lists that are mid-rebuild. -->
+        <shell:GameMissingView />
+
+      </Grid>
+
+      <GridSplitter Grid.Row="1" Classes="dockHeight" HorizontalAlignment="Stretch"
+                    IsVisible="{Binding IsDockOpen}"
+                    AutomationProperties.Name="Resize the bottom dock" />
+
+      <DockPanel Grid.Row="2">
+      <!--
+        Band 3 · dock tab strip, 26px. ALWAYS visible — it is the notification
+        surface, so the counts are readable without opening anything.
+
+        FOUR tabs. Cycles is not one of them (design non-negotiable #7): a broken
+        dependency edge IS a validation warning, it only ever appears right after a
+        sort, and a tab reading "0" for weeks trains people to ignore the strip — it
+        is a category inside Warnings instead. Collection went into the import wizard
+        (2i-3), and Conflicts went onto the rows and the per-mod window (N6c): the
+        dock shows standing state, and both were tasks, not counts to live with.
+
+        Count pills: tone = HIGHEST severity inside (v2) — bad with blocking
+        errors, amber for warnings, accent for informational, neutral at zero.
+        Colour never carries the count on its own, the number is right there.
+      -->
+      <Border DockPanel.Dock="Top" Height="{DynamicResource RmDockStripHeight}" Padding="4,0"
+              Background="{DynamicResource RmBackgroundAltBrush}"
+              BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+
+          <!-- O24 · the "Dock" toggle is GONE. Three controls opened and closed this
+               panel — the toggle, the tabs (which open it) and the × (which closes it) —
+               and the toggle was the only one that did not also say what you would be
+               looking at. Clicking a tab opens; × closes. -->
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="1" VerticalAlignment="Center">
+              <Button Classes="dockTab" AutomationProperties.Name="Warnings dock tab"
+                      Classes.active="{Binding DockTabIndex, Converter={StaticResource IsIndex}, ConverterParameter=0}"
+                      Command="{Binding OpenDockTabCommand}" CommandParameter="0">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <!-- Tone by bound class, never a fixed brush — and the tone is the
+                       HIGHEST severity inside (v2, UI audit): red with blocking
+                       errors, amber with warnings only, neutral when only info. It
+                       used to cap at amber, so 48 blocking errors read like advice. -->
+                  <PathIcon Data="{StaticResource RmIconWarning}" Width="10" Height="10"
+                              Classes.warnOn="{Binding WarningsPanel.PillIsWarn}"
+                              Classes.badOn="{Binding WarningsPanel.PillIsBad}" />
+                  <TextBlock Text="Warnings" VerticalAlignment="Center" />
+                  <Border Classes="countPill"
+                          Classes.warn="{Binding WarningsPanel.PillIsWarn}"
+                          Classes.bad="{Binding WarningsPanel.PillIsBad}">
+                    <TextBlock Text="{Binding WarningCount}" Classes="mono" />
+                  </Border>
+                </StackPanel>
+              </Button>
+              <Button Classes="dockTab" AutomationProperties.Name="Updates dock tab"
+                      Classes.active="{Binding DockTabIndex, Converter={StaticResource IsIndex}, ConverterParameter=1}"
+                      Command="{Binding OpenDockTabCommand}" CommandParameter="1">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <PathIcon Data="{StaticResource RmIconUpdate}" Width="10" Height="10"
+                              Classes.accentOn="{Binding Updates.HasUpdates}" />
+                  <TextBlock Text="Updates" VerticalAlignment="Center" />
+                  <Border Classes="countPill" Classes.accent="{Binding Updates.HasUpdates}">
+                    <TextBlock Text="{Binding Updates.UpdateCount}" Classes="mono" />
+                  </Border>
+                </StackPanel>
+              </Button>
+              <!-- No Conflicts tab (N6c): the ⚡ marks on the active rows are the
+                   standing signal, the per-mod window is the detail, and the status
+                   bar's zone 3 still carries the count. -->
+              <Button Classes="dockTab" AutomationProperties.Name="History dock tab"
+                      Classes.active="{Binding DockTabIndex, Converter={StaticResource IsIndex}, ConverterParameter=2}"
+                      Command="{Binding OpenDockTabCommand}" CommandParameter="2">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <PathIcon Data="{StaticResource RmIconHistory}" Width="10" Height="10" />
+                  <TextBlock Text="History" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <!--
+                No Collection tab. The dock is where standing state is observed —
+                every tab here has a count that says something about the install —
+                and a resolved collection is a one-shot task you produce and then
+                leave stale. Import is File ▸ Import Steam collection… (2i-3), a
+                two-step modal; its downloads report to the status bar.
+              -->
+              <Button Classes="dockTab" AutomationProperties.Name="Activity dock tab"
+                      Classes.active="{Binding DockTabIndex, Converter={StaticResource IsIndex}, ConverterParameter=3}"
+                      Command="{Binding OpenDockTabCommand}" CommandParameter="3">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <PathIcon Data="{StaticResource RmIconActivity}" Width="10" Height="10" />
+                  <TextBlock Text="Activity" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+          </StackPanel>
+
+          <!-- Right side (2a): the height readout, maximise and close. Only while the
+               dock is open — with it closed there is no height to report and nothing
+               to close, and three dead controls in a 26px strip is noise. -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                      VerticalAlignment="Center" IsVisible="{Binding IsDockOpen}">
+            <PathIcon Data="{StaticResource RmIconHeight}" Width="9" Height="9"
+                      Foreground="{DynamicResource RmTextTertiaryBrush}" />
+            <TextBlock Text="{Binding DockHeightText}" Classes="mono ter" Margin="3,0,6,0"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="Drag the edge above the strip to resize" />
+            <Button Classes="affordance" Padding="4,0" Height="20"
+                    Command="{Binding ToggleDockMaximiseCommand}"
+                    AutomationProperties.Name="Maximise the dock"
+                    ToolTip.Tip="Maximise the dock (half the window)">
+              <PathIcon Data="{StaticResource RmIconMaximise}" Width="10" Height="10" />
+            </Button>
+            <Button Classes="affordance" Padding="4,0" Height="20"
+                    Command="{Binding CloseDockCommand}"
+                    AutomationProperties.Name="Close the dock"
+                    ToolTip.Tip="Close the dock">
+              <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+            </Button>
+          </StackPanel>
+
+        </Grid>
+      </Border>
+
+        <!-- The dock body: one shell, six tabs (SCREENS.md). Hidden rather than
+             unloaded, so every tab keeps its scroll position and selection. -->
+        <TabControl Classes="dockBody" SelectedIndex="{Binding DockTabIndex}"
+                    IsVisible="{Binding IsDockOpen}">
+          <!--
+            2a · Warnings. Six groups, always in this order: missing dependencies →
+            incompatibilities → CYCLES → load order → unsupported version →
+            duplicates. Cycles is a category here, not a tab (non-negotiable #7),
+            and the detail panel is the reason why: it carries everything the old
+            Cycles tab did, next to every other warning.
+          -->
+          <TabItem Header="{Binding WarningCount, StringFormat='Warnings ({0})'}">
+            <dock:DockTabShell DetailHeader="SELECTED WARNING"
+                               DetailCounter="{Binding WarningsPanel.SelectionText}"
+                               DetailWidth="{Binding DockDetailWidth, Mode=TwoWay}"
+                               IsStacked="{Binding IsSegmentedLayout}">
+
+              <!-- ===================== 32px tab toolbar ==================== -->
+              <dock:DockTabShell.Toolbar>
+                <!-- O4 · the dock's one toolbar order: FILTERS, then ACTIONS, then
+                     INPUTS, then TEXT — with counts and times right-aligned. Here the
+                     provenance line used to float mid-bar between the search box and
+                     the buttons, which put a passive sentence in the middle of the
+                     controls and left the three verbs jammed against the window edge. -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                  <!-- Severity chips. They filter WITHOUT regrouping: the headings
+                       stay in the same places, so the shape of the list does not
+                       change under the user as they narrow it. Pill-round with a ✓
+                       on the active one (the 2a design's chip shape): the check is
+                       the second channel, so the active lens never rests on border
+                       colour alone. -->
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                              VerticalAlignment="Center">
+                    <ToggleButton Classes="chip round" IsChecked="{Binding WarningsPanel.ShowAll, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="All" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding WarningsPanel.AllCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <!-- The counts wear their severity while it exists (2a): red says
+                         "blocking" before the label does; a grey 0 stays quiet. -->
+                    <ToggleButton Classes="chip round" IsChecked="{Binding WarningsPanel.ShowBlocking, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Blocking" VerticalAlignment="Center" />
+                        <Border Classes="countBadge"
+                                Classes.bad="{Binding WarningsPanel.BlockingCountToned}">
+                          <TextBlock Text="{Binding WarningsPanel.BlockingCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding WarningsPanel.ShowWarning, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Warning" VerticalAlignment="Center" />
+                        <Border Classes="countBadge"
+                                Classes.warn="{Binding WarningsPanel.WarningCountToned}">
+                          <TextBlock Text="{Binding WarningsPanel.WarningToneCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding WarningsPanel.ShowInfo, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Info" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding WarningsPanel.InfoCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                  </StackPanel>
+
+                  <!-- ACTIONS. -->
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                              Margin="10,0,0,0" VerticalAlignment="Center">
+                    <Button Classes="quiet" Command="{Binding RevalidateCommand}"
+                            ToolTip.Tip="Re-run validation against the current load order">
+                      <TextBlock Text="Revalidate" VerticalAlignment="Center" />
+                    </Button>
+                    <Button Classes="quiet" Content="Copy report"
+                            Command="{Binding CopyWarningsReportCommand}" />
+                    <!-- Wired at last: the "ignore-rules store" this button spent five
+                         phases waiting for is R1c's RuleOverrides, and the rule editor
+                         is its face — a disabled community rule is an identity there,
+                         never a deletion. -->
+                    <Button Classes="quiet" Content="Ignore rules…"
+                            Command="{Binding OpenRuleEditorCommand}"
+                            ToolTip.Tip="Open the rule editor — switch a community rule off, or add your own" />
+                  </StackPanel>
+
+                  <!-- INPUT. -->
+                  <TextBox Grid.Column="2" Classes="inset" Width="190" Margin="10,0,0,0"
+                           Text="{Binding WarningsPanel.Search, Mode=TwoWay}"
+                           AutomationProperties.Name="Filter warnings"
+                           PlaceholderText="filter warnings…" />
+
+                  <!-- TEXT, right-aligned. Provenance: where the numbers on screen came
+                       from. Without it a stale count reads as a current one. -->
+                  <TextBlock Grid.Column="4" Classes="small ter" VerticalAlignment="Center"
+                             HorizontalAlignment="Right"
+                             Margin="10,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="320"
+                             Text="{Binding WarningsPanel.Provenance}" />
+                </Grid>
+              </dock:DockTabShell.Toolbar>
+
+              <!-- ================== master table (grouped) ================= -->
+              <dock:DockTabShell.Master>
+                <DockPanel>
+                  <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+                    <Grid ColumnDefinitions="14,8,*,8,190,8,96,8,60">
+                      <TextBlock Grid.Column="2" Text="ISSUE" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Text="MOD" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="6" Text="CATEGORY" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="8" Text="FIX" Classes="micro" VerticalAlignment="Center"
+                                 HorizontalAlignment="Right" />
+                    </Grid>
+                  </Border>
+
+                  <!-- The empty state OVERLAYS the list rather than sitting beside it.
+                       An undocked child of a DockPanel docks Left, which put the
+                       centred column hard against the left edge — visible only in a
+                       screenshot, since both children render either way. -->
+                  <Panel>
+                  <ListBox x:Name="WarningsList" Classes="dockRows" AutomationProperties.Name="Warnings"
+                           ItemsSource="{Binding WarningsPanel.Rows}"
+                           SelectedItem="{Binding WarningsPanel.Selected, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WarningEntry">
+                        <!-- One template with two shapes rather than a selector: a
+                             collapsed shape has no height, so the row is exactly the
+                             22px header or the 24px issue and nothing in between. -->
+                        <Panel>
+                          <!-- No chevron (T6 remainder, closed here): the groups do
+                               not collapse, and a chevron on a header that never
+                               folds is decoration claiming an interaction. -->
+                          <Border IsVisible="{Binding IsGroupHeader}" Classes="dockGroupHeader">
+                            <Grid ColumnDefinitions="Auto,6,Auto,*,Auto">
+                              <TextBlock Grid.Column="0" Text="{Binding Issue}" Classes="micro"
+                                         VerticalAlignment="Center"
+                                         Classes.bad="{Binding IsBlockingGroup}"
+                                         Classes.ter="{Binding IsInfoGroup}" />
+                              <TextBlock Grid.Column="2" Text="{Binding Count}" Classes="mono ter"
+                                         VerticalAlignment="Center" />
+                              <TextBlock Grid.Column="3" Classes="mono ter" VerticalAlignment="Center"
+                                         Margin="6,0,0,0" IsVisible="{Binding HasProvenance}"
+                                         Text="{Binding Provenance, StringFormat='· {0}'}" />
+                              <!-- Still a Button — it performs an action, so it has to be
+                                   focusable and clickable; it was a label once.
+                                   O24 · wearing LINK clothes now (Button.link, the Read
+                                   more style): a table of 22 rows carried 22 bordered
+                                   buttons plus a bordered header action, and the chrome
+                                   was louder than the sentences it sat beside. The class
+                                   takes the border and the fill, not the focus. -->
+                              <Button Grid.Column="4" Content="{Binding BulkAction}" Classes="link"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding HasBulkAction}"
+                                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).BulkResolveCommand}"
+                                      CommandParameter="{Binding}" />
+                            </Grid>
+                          </Border>
+
+                          <Border IsVisible="{Binding IsIssueRow}"
+                                  Height="{DynamicResource RmDockTableRowHeight}"
+                                  Padding="{DynamicResource RmPanePadding}">
+                            <Grid ColumnDefinitions="14,8,*,8,190,8,96,8,60">
+                              <!-- One glyph slot, four candidates, exactly one visible:
+                                   the tone that filtered the row in is the tone drawn.
+                                   Blocking wears the TRIANGLE in danger (the 2a design's
+                                   glyph), not ✕ — a cross beside "Requires X" read as a
+                                   dismiss affordance, and severity is a tone, not a verb. -->
+                              <PathIcon Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsBlockingRow}"
+                                        Data="{StaticResource RmIconWarning}"
+                                        Foreground="{DynamicResource RmDangerBrush}" />
+                              <PathIcon Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsWarningRow}"
+                                        Data="{StaticResource RmIconWarning}"
+                                        Foreground="{DynamicResource RmWarningBrush}" />
+                              <PathIcon Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsInfoRow}"
+                                        Data="{StaticResource RmIconInfo}"
+                                        Foreground="{DynamicResource RmTextTertiaryBrush}" />
+                              <PathIcon Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsCycleRow}"
+                                        Data="{StaticResource RmIconCycle}"
+                                        Foreground="{DynamicResource RmWarningBrush}" />
+
+                              <!--
+                                A Grid, not a horizontal StackPanel. A StackPanel hands
+                                its children INFINITE width, so the three runs measured
+                                at their full length and the sentence painted straight
+                                over the MOD column as soon as the window narrowed —
+                                invisible at 1440, unmissable at 900. ClipToBounds is
+                                the backstop for the case where the prefix and the id
+                                alone are wider than the column.
+                              -->
+                              <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto,*"
+                                    ClipToBounds="True" ToolTip.Tip="{Binding FullIssue}">
+                                <TextBlock Grid.Column="0" Text="{Binding Issue}" Classes="sec"
+                                           VerticalAlignment="Center" />
+                                <!-- Mono only while the run is still a packageId. Once it is a
+                                     mod's NAME it is prose, and prose set in a monospace face
+                                     reads as a code fragment. Bound class, not a local
+                                     FontFamily, so the style stays in the theme. -->
+                                <TextBlock Grid.Column="1" Text="{Binding IssueMono}" Classes="warn"
+                                           Classes.mono="{Binding EmphasisIsMono}"
+                                           IsVisible="{Binding HasMono}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding IssueTail}" Classes="sec"
+                                           IsVisible="{Binding HasTail}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                              </Grid>
+
+                              <TextBlock Grid.Column="4" Text="{Binding ModName}" Classes="pri"
+                                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Grid.Column="6" Text="{Binding Category}" Classes="small ter"
+                                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                              <!-- A real BUTTON (v2 systemic pass — the FIX column was a
+                                   link-styled TextBlock, clickable by nothing). Hidden
+                                   when the row has no fix, rather than rendering a dead
+                                   verb.
+                                   O24 · link clothes, not quiet-button chrome. The
+                                   distinction v2 was defending is focusability, and
+                                   Button.link keeps that: what comes off is the border
+                                   and the fill, which at 22 rows was a column of boxes. -->
+                              <Button Grid.Column="8" Classes="link" HorizontalAlignment="Right"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding HasFix}"
+                                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RunWarningFixCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToolTip.Tip="{Binding FixTip}">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                  <TextBlock Text="{Binding Fix}" VerticalAlignment="Center" />
+                                  <PathIcon Data="{StaticResource RmIconExternal}" Width="8" Height="8"
+                                            VerticalAlignment="Center"
+                                            IsVisible="{Binding IsExternalFix}" />
+                                </StackPanel>
+                              </Button>
+                            </Grid>
+                          </Border>
+                        </Panel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+
+                  <!-- Nothing to report is a designed state, not a blank panel — and
+                       filtered-empty is NOT the success state (T2): this used to bind
+                       !Rows.Count, the filtered list, so a chip or search that hid
+                       every row claimed a clean install while real warnings existed. -->
+                  <StackPanel IsVisible="{Binding WarningsPanel.IsTrulyEmpty}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <PathIcon Data="{StaticResource RmIconCheck}" Width="18" Height="18"
+                              HorizontalAlignment="Center"
+                              Foreground="{DynamicResource RmSuccessBrush}" />
+                    <TextBlock Text="No warnings" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Every active mod has its dependencies, no two are incompatible, and the load order honours every rule." />
+                  </StackPanel>
+                  <StackPanel IsVisible="{Binding WarningsPanel.IsFilteredEmpty}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <TextBlock Text="Nothing matches" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="{Binding WarningsPanel.FilteredEmptyText}" />
+                    <Button Classes="quiet" Content="Clear filters" HorizontalAlignment="Center"
+                            Command="{Binding WarningsPanel.ClearFiltersCommand}" />
+                  </StackPanel>
+                  </Panel>
+                </DockPanel>
+              </dock:DockTabShell.Master>
+
+              <!-- ===================== detail panel (392) ================== -->
+              <dock:DockTabShell.Detail>
+                <Panel>
+                  <TextBlock IsVisible="{Binding !WarningsPanel.HasSelection}"
+                             Classes="small ter" TextWrapping="Wrap"
+                             Text="Select a warning to see what it means and how to resolve it." />
+
+                  <StackPanel Spacing="10" IsVisible="{Binding WarningsPanel.HasSelection}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource RmIconCycle}" Width="12" Height="12"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding WarningsPanel.HasChain}"
+                                Foreground="{DynamicResource RmWarningBrush}" />
+                      <TextBlock Classes="title" TextWrapping="Wrap"
+                                 Text="{Binding WarningsPanel.Detail.Title}" />
+                    </StackPanel>
+
+                    <TextBlock Classes="small sec" TextWrapping="Wrap" LineHeight="17"
+                               Text="{Binding WarningsPanel.Detail.Paragraph}" />
+
+                    <!-- The cycle, as an indented edge chain. The dropped edge is
+                         STRUCK rather than removed: the user has to see the edge that
+                         was not honoured, or "cycle broken" is just an assertion. -->
+                    <Border Classes="card" Padding="10,8" IsVisible="{Binding WarningsPanel.HasChain}">
+                      <StackPanel Spacing="5">
+                        <TextBlock Text="THE CYCLE" Classes="micro" />
+                        <ItemsControl ItemsSource="{Binding WarningsPanel.Detail.Chain}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WarningChainStep">
+                              <StackPanel Orientation="Horizontal" Margin="0,1">
+                                <Border Width="{Binding IndentWidth}" />
+                                <TextBlock Text="{Binding Before}" Classes="mono pri"
+                                           Classes.struck="{Binding IsDropped}" />
+                                <TextBlock Text="{Binding Rule, StringFormat=' → {0} → '}"
+                                           Classes="mono ter" Classes.struck="{Binding IsDropped}" />
+                                <TextBlock Text="{Binding After}" Classes="mono pri"
+                                           Classes.struck="{Binding IsDropped}" />
+                                <!-- A real geometry, not ✕ (non-negotiable #12, T2). -->
+                                <PathIcon Data="{StaticResource RmIconClose}" Width="7" Height="7"
+                                          Margin="4,0,2,0" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource RmDangerBrush}"
+                                          IsVisible="{Binding IsDropped}" />
+                                <TextBlock Text="dropped" Classes="mono bad"
+                                           IsVisible="{Binding IsDropped}" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="small ter" TextWrapping="Wrap" Margin="0,3,0,0"
+                                   IsVisible="{Binding WarningsPanel.HasChainNote}"
+                                   Text="{Binding WarningsPanel.Detail.ChainNote}" />
+                      </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="RESOLVE" Classes="micro" />
+                      <ItemsControl ItemsSource="{Binding WarningsPanel.Detail.Actions}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:WarningAction">
+                            <!-- Two buttons, one visible. Binding Classes="accent" on a
+                                 quiet button would leave two style blocks fighting over
+                                 the same setters, and which one wins is declaration
+                                 order — invisible in review, invisible to the build. -->
+                            <Panel Margin="0,0,6,6">
+                              <Button Classes="accent" Height="24"
+                                      IsVisible="{Binding IsPrimary}"
+                                      IsEnabled="{Binding IsEnabled}"
+                                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RunWarningActionCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToolTip.Tip="{Binding Tip}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                  <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                  <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                                            VerticalAlignment="Center"
+                                            IsVisible="{Binding IsExternal}" />
+                                </StackPanel>
+                              </Button>
+                              <Button Classes="quiet"
+                                      IsVisible="{Binding !IsPrimary}"
+                                      IsEnabled="{Binding IsEnabled}"
+                                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RunWarningActionCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToolTip.Tip="{Binding Tip}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                  <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                  <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                                            VerticalAlignment="Center"
+                                            IsVisible="{Binding IsExternal}" />
+                                </StackPanel>
+                              </Button>
+                            </Panel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="AFFECTED ROWS" Classes="micro" />
+                        <TextBlock Text="· click reveals" Classes="mono ter" />
+                      </StackPanel>
+                      <!-- Each row is a BUTTON that reveals it in the lists. The reveal
+                           icons used to be decoration over an unclickable Grid — an
+                           affordance promising an interaction nothing implemented, and
+                           the hint beside the heading said "double-click" about it. -->
+                      <ItemsControl ItemsSource="{Binding WarningsPanel.Detail.Affected}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:WarningAffectedRow">
+                            <Button Classes="listRow"
+                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RevealAffectedCommand}"
+                                    CommandParameter="{Binding}"
+                                    AutomationProperties.Name="{Binding Name}"
+                                    ToolTip.Tip="Reveal in the lists">
+                              <Grid ColumnDefinitions="26,8,Auto,6,*,Auto" Height="20">
+                                <TextBlock Grid.Column="0" Text="{Binding Index}" Classes="idx" />
+                                <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="pri"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="4" Text="{Binding Note}" Classes="small ter"
+                                           VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <PathIcon Grid.Column="5" Data="{StaticResource RmIconExternal}"
+                                          Width="9" Height="9" VerticalAlignment="Center"
+                                          Foreground="{DynamicResource RmTextTertiaryBrush}" />
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </StackPanel>
+                </Panel>
+              </dock:DockTabShell.Detail>
+            </dock:DockTabShell>
+          </TabItem>
+          <!--
+            2b · Updates. The ONE mod table with checkboxes (non-negotiable #2):
+            here the question genuinely is "which of these", where in the mod lists
+            membership is simply which list a row is in.
+          -->
+          <TabItem Header="{Binding Updates.UpdateCount, StringFormat='Updates ({0})'}">
+            <!-- 2b heads the detail panel with the mod it is about ("CHANGELOG ·
+                 CAMERA+"), not with the selection count — that already sits at the
+                 far left of the toolbar, and printing it twice wastes the one place
+                 that can say WHICH row you are reading. -->
+            <dock:DockTabShell DetailHeader="{Binding Updates.DetailHeaderText}"
+                               DetailWidth="{Binding DockDetailWidth, Mode=TwoWay}"
+                               IsStacked="{Binding IsSegmentedLayout}">
+
+              <!-- ===================== 32px tab toolbar ==================== -->
+              <dock:DockTabShell.Toolbar>
+                <!-- O4 · filters, actions, inputs, text. Updates has NO filters and no
+                     inputs, so it is actions then text — and every count moves right:
+                     the source pills, the selection summary and the result sentence are
+                     all readouts. The declaration order was also not the column order
+                     (Snooze was written after the column-4 pills), which is how a
+                     reshuffle silently produces a bar nobody intended. -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto">
+                  <!-- O25 · state chips, in the filters-first slot every other tab uses.
+                       This tab had no filter at all, so a table mixing updates, delisted
+                       items and snoozed ones could only be read by scanning the STATE
+                       column. Exclusive, like History's: a state is one thing, not a set.
+                       The counts come from ALL rows, so a chip cannot change its own. -->
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                              VerticalAlignment="Center">
+                    <ToggleButton Classes="chip round" IsChecked="{Binding Updates.ShowAll, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="All" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding Updates.AllStatesCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding Updates.ShowUpdatesOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Update" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding Updates.UpdatesStateCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding Updates.ShowSnoozedOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Snoozed" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding Updates.SnoozedStateCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding Updates.ShowDelistedOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Delisted" VerticalAlignment="Center" />
+                        <Border Classes="countBadge" Classes.bad="{Binding Updates.DelistedStateCount}">
+                          <TextBlock Text="{Binding Updates.DelistedStateCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                  </StackPanel>
+
+                  <!-- The update goes THROUGH the Workshop: the running Steam client
+                       updates the subscribed items in place (UpdateViaWorkshopAsync),
+                       and its confirm states the one irreversible part first. -->
+                  <Button Grid.Column="1" Classes="accent" Height="24" Margin="10,0,0,0"
+                          Content="{Binding Updates.UpdateButtonText}"
+                          Command="{Binding UpdateSelectedCommand}"
+                          IsEnabled="{Binding Updates.CanUpdateSelection}"
+                          ToolTip.ShowOnDisabled="True"
+                          ToolTip.Tip="Has Steam update the ticked subscriptions in place — tick rows first" />
+
+                  <Button Grid.Column="2" Classes="quiet" Content="Check again" Margin="6,0,0,0"
+                          Command="{Binding CheckUpdatesCommand}"
+                          IsEnabled="{Binding !Updates.IsWorking}" />
+
+                  <TextBlock Grid.Column="5" Text="{Binding Updates.SelectionSummary}"
+                             Classes="small ter" VerticalAlignment="Center" Margin="10,0,0,0" />
+
+                  <!-- Source chips (2b). Rendered only for sources actually present,
+                       so a Git chip reading 0 never appears on a Workshop-only list. -->
+                  <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4"
+                              VerticalAlignment="Center" Margin="10,0,0,0">
+                    <!-- 2k · offline. The rows are kept and BADGED: the last answer is
+                         still the best one we have, it is just no longer known to be
+                         current. Clearing the table would be a global failure dressed
+                         up as a per-feature one. -->
+                    <!-- countPill.warn, never a local Background over the class (T2). -->
+                    <Border Classes="statePill warn" IsVisible="{Binding Updates.IsStale}"
+                            ToolTip.Tip="Steam could not be reached — this is the previous result">
+                      <TextBlock Text="stale" Classes="small" />
+                    </Border>
+                    <!-- The chip family's badge grammar: label + boxed count. -->
+                    <Border Classes="countPill" IsVisible="{Binding Updates.HasWorkshopRows}">
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="Workshop" Classes="small ter" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding Updates.WorkshopCount}" />
+                        </Border>
+                      </StackPanel>
+                    </Border>
+                    <Border Classes="countPill" IsVisible="{Binding Updates.HasLocalRows}">
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="Local" Classes="small ter" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding Updates.LocalCount}" />
+                        </Border>
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+
+                  <!-- Snooze ▾. The three options from 2b; the last is the one people
+                       actually want, because a mod you hold back is held back for the
+                       current game version, not for a week. -->
+                  <!-- A Button, not a SplitButton. Its primary half carried no command,
+                       so half of it was dead: clicking "Snooze" did nothing and only the
+                       chevron worked. There is no honest default here either — a week
+                       and "until it changes" are different decisions — so the control
+                       asks rather than guessing. -->
+                  <!-- quiet + a real ▾ (UI audit follow-up): the classless button wore
+                       Fluent's default chrome — the one control on this bar outside
+                       the design's vocabulary. -->
+                  <Button Grid.Column="3" Classes="quiet" Margin="6,0,0,0"
+                          VerticalAlignment="Center"
+                          IsEnabled="{Binding Updates.HasSelectedRow}" ToolTip.ShowOnDisabled="True"
+                          ToolTip.Tip="Stop reporting this update for a while — select a row first">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="Snooze" VerticalAlignment="Center" />
+                      <PathIcon Data="{StaticResource RmIconChevronDown}" Width="8" Height="8"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Button.Flyout>
+                      <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                        <MenuItem Header="For 1 week"
+                                  Command="{Binding SnoozeUpdateCommand}" CommandParameter="OneWeek" />
+                        <MenuItem Header="Until the next version"
+                                  Command="{Binding SnoozeUpdateCommand}" CommandParameter="UntilNextVersion" />
+                        <MenuItem Header="Until the next game version"
+                                  Command="{Binding SnoozeUpdateCommand}" CommandParameter="UntilNextGameVersion" />
+                        <Separator />
+                        <MenuItem Header="Un-snooze this mod"
+                                  Command="{Binding UnsnoozeUpdateCommand}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+
+                  <!-- Live download strip, pushed right (2b).
+                       O4 · the indeterminate ProgressBar is GONE. `1a` makes the status
+                       bar's activity zone the only place background progress appears,
+                       and this was the last surface disobeying it — the update check
+                       already claims that zone ("checking updates…"), so the bar was a
+                       second, smaller report of a thing already being reported. The
+                       SUMMARY stays: it is a result, not progress. -->
+                  <TextBlock Grid.Column="7" Classes="small ter" VerticalAlignment="Center"
+                             HorizontalAlignment="Right"
+                             Text="{Binding Updates.Summary}" TextTrimming="CharacterEllipsis"
+                             Margin="10,0,0,0" MaxWidth="320" />
+                </Grid>
+              </dock:DockTabShell.Toolbar>
+
+              <!-- ========================= master table ==================== -->
+              <dock:DockTabShell.Master>
+                <DockPanel>
+                  <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+                    <!-- 2b's checkbox column is 13px, which is an HTML checkbox.
+                         Avalonia's Fluent box is 20 and shrinking it below that also
+                         drops the hit target under the guide's §10 minimum, so the
+                         COLUMN gives way and the following gap absorbs it. -->
+                    <!-- LATEST is DELETED (T6, systemic pass): Steam publishes an
+                         update TIME, never a version, so the column could only ever
+                         show a dash with a tooltip apologising for it. PUBLISHED is
+                         the real signal and now sits beside INSTALLED. -->
+                    <Grid ColumnDefinitions="20,4,14,8,*,8,74,8,92,8,58,8,66">
+                      <!-- Tri-state, and it only ever selects the SAFE set: never a
+                           pre-release, never a mod with uncommitted local edits. -->
+                      <ToggleButton Grid.Column="0" Classes="rowCheck tick"
+                                    IsThreeState="True"
+                                    IsChecked="{Binding Updates.HeaderChecked, Mode=OneWay}"
+                                    Command="{Binding ToggleUpdateHeaderCommand}"
+                                    AutomationProperties.Name="Select every mod that is safe to update"
+                                    ToolTip.Tip="Selects only the safe set — pre-releases and mods with local edits need a deliberate tick" />
+                      <TextBlock Grid.Column="2" Text="SRC" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Text="MOD" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="6" Text="INSTALLED" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="8" Text="PUBLISHED" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="10" Text="SIZE" Classes="micro" VerticalAlignment="Center"
+                                 HorizontalAlignment="Right" />
+                      <TextBlock Grid.Column="12" Text="STATE" Classes="micro" VerticalAlignment="Center"
+                                 HorizontalAlignment="Right" />
+                    </Grid>
+                  </Border>
+
+                  <!-- Overlay, not a sibling dock: see the Warnings master. -->
+                  <Panel>
+                  <ListBox x:Name="UpdatesList" Classes="dockRows" AutomationProperties.Name="Available updates"
+                           ItemsSource="{Binding Updates.Rows}"
+                           SelectedItem="{Binding Updates.SelectedRow, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:UpdateRowViewModel">
+                        <Border Height="{DynamicResource RmDockTableRowHeight}"
+                                Padding="{DynamicResource RmPanePadding}">
+                          <!-- 2b's checkbox column is 13px, which is an HTML checkbox.
+                         Avalonia's Fluent box is 20 and shrinking it below that also
+                         drops the hit target under the guide's §10 minimum, so the
+                         COLUMN gives way and the following gap absorbs it. -->
+                    <Grid ColumnDefinitions="20,4,14,8,*,8,74,8,92,8,58,8,66">
+                            <ToggleButton Grid.Column="0" Classes="rowCheck tick"
+                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          IsVisible="{Binding CanSelect}"
+                                          AutomationProperties.Name="Include in the update batch" />
+
+                            <!-- The SHARED icon badge (UI audit follow-up): these rows
+                                 were the last surface drawing a LETTER for a source —
+                                 one source, one mark, same as the mod lists. -->
+                            <ContentControl Grid.Column="2" Content="{Binding}"
+                                            ContentTemplate="{StaticResource SourceBadgeTemplate}"
+                                            VerticalAlignment="Center" />
+
+                            <!-- Grid, not a horizontal StackPanel: a StackPanel hands its
+                                 children infinite width, so the TextTrimming below never
+                                 engaged and a long mod name painted over INSTALLED. The
+                                 snooze note is the fixed part, so the name takes the star. -->
+                            <Grid Grid.Column="4" ColumnDefinitions="*,6,Auto" ClipToBounds="True">
+                              <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="pri"
+                                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                         ToolTip.Tip="{Binding Name}" />
+                              <TextBlock Grid.Column="2" Text="{Binding SnoozeNote}" Classes="mono ter"
+                                         IsVisible="{Binding HasSnoozeNote}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <TextBlock Grid.Column="6" Text="{Binding InstalledVersion}" Classes="mono ter"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="8" Text="{Binding PublishedText}" Classes="small sec"
+                                       VerticalAlignment="Center"
+                                       ToolTip.Tip="{Binding PublishedExact}" />
+                            <TextBlock Grid.Column="10" Text="{Binding SizeText}" Classes="mono ter"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" />
+                            <!-- O25 · a PILL, not a bare word. The state is the column
+                                 the eye goes to, and toned text alone put the whole
+                                 weight on colour — which E2 is the standing argument
+                                 against. The pill gives it an edge and a fill, so it
+                                 reads as a state before its hue is read at all.
+                                 acc/warn/bad, not link (UI audit): a state is a tone,
+                                 not a destination. -->
+                            <Border Grid.Column="12" Classes="statePill compact"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Classes.acc="{Binding IsStateAccent}"
+                                    Classes.warn="{Binding IsStateWarning}"
+                                    Classes.bad="{Binding IsStateBad}">
+                              <TextBlock Text="{Binding StatusText}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         TextAlignment="Center" />
+                            </Border>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+
+                  <!-- Never checked is NOT the same as nothing to report (3e): one is
+                       the absence of a result, the other is a result. Claiming success
+                       you have not verified is the failure that state warns about. -->
+                  <StackPanel IsVisible="{Binding !Updates.HasChecked}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <TextBlock Text="Not checked yet" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Checking asks the Workshop for each installed mod's publish time. Nothing is downloaded and nothing is written." />
+                    <Button Classes="quiet" Content="Check for updates" HorizontalAlignment="Center"
+                            Command="{Binding CheckUpdatesCommand}" />
+                  </StackPanel>
+
+                  <StackPanel IsVisible="{Binding Updates.IsCleanAfterCheck}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <PathIcon Data="{StaticResource RmIconCheck}" Width="18" Height="18"
+                              HorizontalAlignment="Center"
+                              Foreground="{DynamicResource RmSuccessBrush}" />
+                    <TextBlock Text="Nothing to update" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="{Binding Updates.Summary}" />
+                  </StackPanel>
+                  </Panel>
+                </DockPanel>
+              </dock:DockTabShell.Master>
+
+              <!-- ========================= detail panel ==================== -->
+              <dock:DockTabShell.Detail>
+                <Panel>
+                  <TextBlock IsVisible="{Binding !Updates.HasSelectedRow}"
+                             Classes="small ter" TextWrapping="Wrap"
+                             Text="Select a mod to see what changes and what survives the update." />
+
+                  <StackPanel Spacing="10" IsVisible="{Binding Updates.HasSelectedRow}">
+                    <TextBlock Classes="title" TextWrapping="Wrap"
+                               Text="{Binding Updates.SelectedTitle}" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap"
+                               Text="{Binding Updates.SelectedFacts}" />
+
+                    <!-- 2b's safety chips — the honest subset: only states the check
+                         actually knows. Each hidden when false, never greyed. -->
+                    <WrapPanel Orientation="Horizontal">
+                      <Border Classes="statePill warn" Margin="0,0,6,0"
+                              IsVisible="{Binding Updates.SelectedRow.IsPreRelease, FallbackValue=False}"
+                              ToolTip.Tip="The installed version string looks like a pre-release — the header checkbox never selects it">
+                        <TextBlock Text="pre-release" Classes="small" />
+                      </Border>
+                      <Border Classes="statePill" Margin="0,0,6,0"
+                              IsVisible="{Binding Updates.SelectedRow.IsSnoozed, FallbackValue=False}"
+                              ToolTip.Tip="{Binding Updates.SelectedRow.SnoozeNote}">
+                        <TextBlock Text="snoozed" Classes="small" />
+                      </Border>
+                      <Border Classes="statePill bad" Margin="0,0,6,0"
+                              IsVisible="{Binding Updates.SelectedRow.IsDelisted, FallbackValue=False}"
+                              ToolTip.Tip="No longer on the Workshop. Your local copy is safe — unsubscribing would delete it">
+                        <TextBlock Text="delisted" Classes="small" />
+                      </Border>
+                    </WrapPanel>
+
+                    <!-- No changelog is a fact, not a blank panel. Steam's keyless
+                         endpoints do not return one; inventing entries under a
+                         "changelog" heading would be worse than saying so. -->
+                    <Border Classes="card" Padding="10,8">
+                      <StackPanel Spacing="5">
+                        <TextBlock Text="CHANGELOG" Classes="micro" />
+                        <TextBlock Classes="small ter" TextWrapping="Wrap"
+                                   Text="Steam does not publish a machine-readable changelog for Workshop items, so there is nothing to show here. The Workshop page has the author's own notes." />
+                      </StackPanel>
+                    </Border>
+
+                    <!-- The accent-bordered note from 2b. This is the reassurance the
+                         panel exists to give: an update rewrites the mod folder, and
+                         everything the user arranged is keyed off packageId, not the
+                         folder, so it survives. -->
+                    <Border Classes="card" Padding="10,8" BorderThickness="2,0,0,0"
+                            CornerRadius="0"
+                            BorderBrush="{DynamicResource RmAccentBrush}"
+                            Background="{DynamicResource RmAccentTintBrush}">
+                      <TextBlock Classes="small sec" TextWrapping="Wrap"
+                                 Text="Updating rewrites the mod folder. Your load-order position, tags and notes are keyed to packageId and survive. A snapshot is taken before the batch runs." />
+                    </Border>
+
+                    <StackPanel Spacing="5">
+                      <TextBlock Text="ACTIONS" Classes="micro" />
+                      <WrapPanel Orientation="Horizontal">
+                        <!-- ACCENT again, because it is REAL now (the T6 demotion was
+                             for the disabled promise): the same Workshop path as the
+                             batch, size one, with the same stated-semantics confirm. -->
+                        <Button Classes="accent" Height="24" Content="Update this" Margin="0,0,6,6"
+                                Command="{Binding UpdateThisCommand}"
+                                IsEnabled="{Binding Updates.CanOpenWorkshopPage}"
+                                ToolTip.ShowOnDisabled="True"
+                                ToolTip.Tip="Has Steam update this subscription in place — needs a Workshop id" />
+                        <Button Classes="quiet" Content="Reveal in list" Margin="0,0,6,6"
+                                Command="{Binding RevealUpdateRowCommand}" />
+                        <Button Classes="quiet" Margin="0,0,6,6"
+                                Command="{Binding OpenWorkshopPageCommand}"
+                                IsEnabled="{Binding Updates.CanOpenWorkshopPage}"
+                                ToolTip.Tip="Open this mod's Workshop page — where the author's own change notes live">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Workshop" VerticalAlignment="Center" />
+                            <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                                      VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Button>
+                        <Button Classes="quiet" Content="Un-snooze" Margin="0,0,6,6"
+                                Command="{Binding UnsnoozeUpdateCommand}"
+                                IsEnabled="{Binding Updates.SelectedRow.IsSnoozed, FallbackValue=False}"
+                                ToolTip.ShowOnDisabled="True"
+                                ToolTip.Tip="This mod is not snoozed" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </StackPanel>
+                </Panel>
+              </dock:DockTabShell.Detail>
+            </dock:DockTabShell>
+          </TabItem>
+
+          <!--
+            2d · History. APPEND-ONLY (non-negotiable #5): "Restore this state"
+            appends a new snapshot whose contents equal the old one, and nothing here
+            ever rewinds. Named and pinned states are exempt from pruning, which is
+            the entire point of naming one.
+          -->
+          <TabItem Header="{Binding SnapshotCount, StringFormat='History ({0})'}">
+            <dock:DockTabShell DetailHeader="{Binding History.DetailHeaderText}"
+                               DetailCounter="grouped by kind"
+                               DetailWidth="{Binding DockDetailWidth, Mode=TwoWay}"
+                               IsStacked="{Binding IsSegmentedLayout}"
+                               HasAside="True" AsideWidth="248"
+                               AsideHeader="{Binding History.AsideHeaderText}">
+
+              <!-- ===================== 32px tab toolbar ==================== -->
+              <dock:DockTabShell.Toolbar>
+                <!-- O4 · filters, actions, inputs, text. This bar had the pair exactly
+                     the wrong way round — the summary sentence first and the filter
+                     chips second. -->
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                              VerticalAlignment="Center">
+                    <!-- The v2 pill+check chip shape (UI audit): same as Warnings'. -->
+                    <ToggleButton Classes="chip round" IsChecked="{Binding History.ShowAll, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="All" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding History.ShowAppliedOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Applied only" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding History.AppliedCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding History.ShowNamed, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Named" VerticalAlignment="Center" />
+                        <Border Classes="countBadge">
+                          <TextBlock Text="{Binding History.NamedCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                  </StackPanel>
+
+                  <!-- O26 · the pin button is GONE from here, along with the concept.
+                       Naming is what protects a state, and it belongs beside the name —
+                       in the aside, on the state you are looking at — not as a verb in a
+                       toolbar acting on whatever happens to be selected. -->
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                              Margin="10,0,0,0" VerticalAlignment="Center">
+                    <Button Classes="quiet" Content="Prune older than 30d"
+                            Command="{Binding PruneHistoryCommand}"
+                            ToolTip.Tip="Named states are never pruned" />
+                  </StackPanel>
+
+                  <TextBlock Grid.Column="3" Text="{Binding History.Summary}"
+                             Classes="small ter" VerticalAlignment="Center"
+                             HorizontalAlignment="Right"
+                             TextTrimming="CharacterEllipsis"
+                             Margin="10,0,0,0" MaxWidth="320" />
+                </Grid>
+              </dock:DockTabShell.Toolbar>
+
+              <!-- ========================= master list ===================== -->
+              <dock:DockTabShell.Master>
+                <DockPanel>
+                  <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+                    <Grid ColumnDefinitions="34,8,88,8,*,8,104,8,44">
+                      <TextBlock Grid.Column="0" Text="#" Classes="micro" HorizontalAlignment="Right"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="WHEN" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Text="ACTION" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="6" Text="CHANGE" Classes="micro" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="8" Text="SIZE" Classes="micro" VerticalAlignment="Center"
+                                 HorizontalAlignment="Right" />
+                    </Grid>
+                  </Border>
+
+                  <Panel>
+                  <ListBox x:Name="SnapshotsList" Classes="dockRows" AutomationProperties.Name="Snapshot history"
+                           ItemsSource="{Binding History.Rows}"
+                           SelectedItem="{Binding History.Selected, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SnapshotEntry">
+                        <Border Height="{DynamicResource RmDockTableRowHeight}"
+                                Padding="{DynamicResource RmPanePadding}">
+                          <Grid ColumnDefinitions="34,8,88,8,*,8,104,8,44">
+                            <TextBlock Grid.Column="0" Text="{Binding NumberText}" Classes="idx"
+                                       Classes.warn="{Binding IsProtected}" />
+                            <TextBlock Grid.Column="2" Text="{Binding When}" Classes="small sec"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Grid, not a horizontal StackPanel — the same infinite-width
+                                 trap. The action is the fixed-length part and the detail
+                                 is the one carrying a user's snapshot name, so the detail
+                                 takes the star and ellipsizes. -->
+                            <Grid Grid.Column="4" ColumnDefinitions="Auto,6,Auto,6,*"
+                                  ClipToBounds="True">
+                              <!-- ★ marks a state that survives pruning. -->
+                              <PathIcon Grid.Column="0" Data="{StaticResource RmIconFavorite}"
+                                        Width="9" Height="9" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsProtected}"
+                                        Foreground="{DynamicResource RmWarningBrush}" />
+                              <TextBlock Grid.Column="2" Text="{Binding Action}" Classes="pri"
+                                         VerticalAlignment="Center" />
+                              <TextBlock Grid.Column="4" Text="{Binding Detail}" Classes="small ter"
+                                         VerticalAlignment="Center" IsVisible="{Binding HasDetail}"
+                                         TextTrimming="CharacterEllipsis"
+                                         ToolTip.Tip="{Binding Detail}" />
+                            </Grid>
+
+                            <TextBlock Grid.Column="6" Text="{Binding Change}" Classes="mono ter"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="8" Text="{Binding Size}" Classes="mono ter"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+
+                  <!-- Filtered-empty split (T2): "Named" with zero named snapshots used
+                       to claim there were no snapshots at all. -->
+                  <StackPanel IsVisible="{Binding History.IsTrulyEmpty}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <TextBlock Text="No snapshots yet" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="Every change to the load order writes one — sort, activate, drag, import, apply. The first will appear as soon as you change something." />
+                  </StackPanel>
+                  <StackPanel IsVisible="{Binding History.IsFilteredEmpty}" Spacing="8"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"
+                              MaxWidth="360" Margin="16">
+                    <TextBlock Text="Nothing matches" Classes="title" HorizontalAlignment="Center" />
+                    <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                               Text="{Binding History.FilteredEmptyText}" />
+                    <Button Classes="quiet" Content="Show all" HorizontalAlignment="Center"
+                            Command="{Binding History.ClearFiltersCommand}" />
+                  </StackPanel>
+                  </Panel>
+                </DockPanel>
+              </dock:DockTabShell.Master>
+
+              <!-- ===================== detail panel (452) ================== -->
+              <dock:DockTabShell.Detail>
+                <Panel>
+                  <TextBlock IsVisible="{Binding !History.HasSelection}"
+                             Classes="small ter" TextWrapping="Wrap"
+                             Text="Select a state to see what that step changed." />
+
+                  <StackPanel Spacing="10" IsVisible="{Binding History.HasSelection}">
+                    <TextBlock Classes="small sec" TextWrapping="Wrap" LineHeight="17"
+                               Text="{Binding History.Detail.Paragraph}" />
+
+                    <ItemsControl ItemsSource="{Binding History.Detail.Changes}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HistoryChange">
+                          <Grid ColumnDefinitions="14,6,52,8,*,Auto" Height="20">
+                            <TextBlock Grid.Column="0" Text="{Binding Glyph}" Classes="mono ter"
+                                       VerticalAlignment="Center" />
+                            <!-- A move without its from→to is just a name; the delta is
+                                 the part that says whether it mattered. -->
+                            <TextBlock Grid.Column="2" Text="{Binding From}" Classes="mono ter"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right" />
+                            <TextBlock Grid.Column="4" Text="{Binding Name}" Classes="pri"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="5" Text="{Binding Delta}" Classes="mono ter"
+                                       VerticalAlignment="Center" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Classes="quiet" HorizontalAlignment="Left"
+                            IsVisible="{Binding History.Detail.HasHidden}"
+                            Command="{Binding ExpandHistoryChangesCommand}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding History.Detail.HiddenText}" Classes="small ter"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="show all" Classes="small link" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+
+                  </StackPanel>
+                </Panel>
+              </dock:DockTabShell.Detail>
+
+              <!-- ======= third pane: the snapshot rail (2d, 248px fixed) ====== -->
+              <dock:DockTabShell.Aside>
+                <StackPanel Spacing="10" IsVisible="{Binding History.HasSelection}">
+                  <Grid ColumnDefinitions="58,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Mods" Classes="small ter" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="small sec" TextWrapping="Wrap"
+                               Text="{Binding History.Detail.Mods}" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Game" Classes="small ter" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="small sec" TextWrapping="Wrap"
+                               Text="{Binding History.Detail.Game}" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Applied" Classes="small ter" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Classes="small sec" TextWrapping="Wrap"
+                               Text="{Binding History.Detail.Applied}" />
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Rules" Classes="small ter" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Classes="small sec" TextWrapping="Wrap"
+                               Text="{Binding History.Detail.Rules}" />
+                  </Grid>
+
+                  <StackPanel Spacing="6">
+                    <Button Classes="accent" Height="24" HorizontalAlignment="Stretch"
+                            Content="Restore this state"
+                            Command="{Binding RestoreHistoryStateCommand}" />
+
+                    <!--
+                      O26 (second pass) · NAMING IS THE WHOLE FEATURE, and pinning is
+                      gone. IsProtected WAS `Pinned || Name is set`, so a name already
+                      exempted a state from every prune and already put it under the
+                      Named chip; pinning's only independent case — protected with no
+                      name — was unreachable because pinning auto-assigned one. Two
+                      controls with one visible effect is why unpinning looked inert.
+                      The domain field has since gone too: every stored snapshot
+                      carried `pinned: false`, so it protected nothing.
+
+                      Read-only until ✎, and committed by ✓ — the separator-rename
+                      grammar. An always-live box is what "naming shouldn't be open"
+                      means: the field invited a stray click that wrote.
+                    -->
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="Name" Classes="small ter" />
+
+                      <Grid ColumnDefinitions="*,4,Auto,2,Auto" IsVisible="{Binding History.IsNotEditingName}">
+                        <TextBlock Grid.Column="0" Text="{Binding History.NameDisplay}"
+                                   Classes="small" Classes.ter="{Binding !History.HasName}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding History.NameDisplay}" />
+                        <Button Grid.Column="2" Classes="affordance" Padding="3,0"
+                                Command="{Binding BeginHistoryRenameCommand}"
+                                AutomationProperties.Name="Rename this state"
+                                ToolTip.Tip="Name this state — named states are never pruned">
+                          <PathIcon Data="{StaticResource RmIconEdit}" Width="10" Height="10" />
+                        </Button>
+                        <!-- Un-name in one press. The × is the same verb it carries on a
+                             tag chip and the favourite pill — "remove this label" — and it
+                             appears only when there IS one, so it never sits there dead.
+                             Without it the only way out was to open the editor and empty
+                             the box by hand. -->
+                        <Button Grid.Column="4" Classes="affordance" Padding="3,0"
+                                IsVisible="{Binding History.HasName}"
+                                Command="{Binding ClearHistoryNameCommand}"
+                                AutomationProperties.Name="Remove the name from this state"
+                                ToolTip.Tip="Un-name this state — it can be pruned again">
+                          <PathIcon Data="{StaticResource RmIconClose}" Width="9" Height="9" />
+                        </Button>
+                      </Grid>
+
+                      <Grid ColumnDefinitions="*,4,Auto,2,Auto" IsVisible="{Binding History.IsEditingName}">
+                        <TextBox Grid.Column="0" Classes="inset"
+                                 AutomationProperties.Name="Name for this state"
+                                 Text="{Binding History.EditName, Mode=TwoWay}"
+                                 PlaceholderText="unnamed">
+                          <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding CommitHistoryRenameCommand}" />
+                            <KeyBinding Gesture="Escape" Command="{Binding CancelHistoryRenameCommand}" />
+                          </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="2" Classes="affordance" Padding="3,0"
+                                Command="{Binding CommitHistoryRenameCommand}"
+                                AutomationProperties.Name="Confirm the name"
+                                ToolTip.Tip="Save this name — empty clears it">
+                          <PathIcon Data="{StaticResource RmIconCheck}" Width="10" Height="10"
+                                    Foreground="{DynamicResource RmSuccessBrush}" />
+                        </Button>
+                        <Button Grid.Column="4" Classes="affordance" Padding="3,0"
+                                Command="{Binding CancelHistoryRenameCommand}"
+                                AutomationProperties.Name="Cancel renaming"
+                                ToolTip.Tip="Leave the name as it was">
+                          <PathIcon Data="{StaticResource RmIconClose}" Width="9" Height="9" />
+                        </Button>
+                      </Grid>
+
+                      <TextBlock Classes="small ter" TextWrapping="Wrap"
+                                 Text="{Binding History.NameNote}" />
+                    </StackPanel>
+                    <!-- Exports the CURRENT list, not the selected state: the exporter
+                         reads the active arrangement, and a button that silently
+                         exported something else would be worse than one that says so. -->
+                    <Button Classes="quiet" HorizontalAlignment="Stretch"
+                            Content="Export current list as .rwlist"
+                            Command="{Binding ExportCommand}"
+                            ToolTip.Tip="Exports the active load order. To export this state, restore it first." />
+                  </StackPanel>
+
+                  <!-- The promise the tab exists to keep. -->
+                  <TextBlock Classes="small ter" TextWrapping="Wrap"
+                             Text="Restoring appends a new state with these contents. Nothing in history is ever destroyed except by Prune." />
+                </StackPanel>
+              </dock:DockTabShell.Aside>
+            </dock:DockTabShell>
+          </TabItem>
+
+          <TabItem Header="Activity">
+            <!--
+              2f, deliberately plain: mono text, HH:MM:SS.mmm · LEVEL · subsystem ·
+              message, coloured by level only. It is the SAME text as the on-disk
+              log because its job is to be pasted into a GitHub issue — one
+              LogEntryFormatter serves both, so they cannot drift.
+
+              The first tab on the shared shell. Activity is the one tab with NO
+              detail panel — a log line's detail is the line — so it sets
+              HasDetail=False and the master table takes the full width.
+            -->
+            <dock:DockTabShell HasDetail="False">
+              <dock:DockTabShell.Toolbar>
+                <!-- O4 · filters, actions, inputs, text. The level chips are mutually
+                     exclusive — a level is a FLOOR, not a set — and Follow is a MODE,
+                     which is why it used to share a StackPanel with "Jump to newest",
+                     an action. Splitting them is the point of the order: the eye should
+                     be able to find the verbs without reading the modes. -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                              VerticalAlignment="Center">
+                    <!-- The v2 pill+check chip shape with toned counts (UI audit): a red
+                         error count says what it counts before the label does. -->
+                    <ToggleButton Classes="chip round" IsChecked="{Binding ActivityShowAll, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="All" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding ActivityErrorsOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Errors" VerticalAlignment="Center" />
+                        <Border Classes="countBadge" Classes.bad="{Binding ActivityErrorsToned}">
+                          <TextBlock Text="{Binding ActivityErrorCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip round" IsChecked="{Binding ActivityWarnOnly, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Warn" VerticalAlignment="Center" />
+                        <Border Classes="countBadge" Classes.warn="{Binding ActivityWarnToned}">
+                          <TextBlock Text="{Binding ActivityWarnCount}" />
+                        </Border>
+                      </StackPanel>
+                    </ToggleButton>
+                    <!-- "All" is the reading view — Info and above. Debug drops the
+                         floor to everything the ring holds, or the two chips would
+                         be the same chip. -->
+                    <ToggleButton Classes="chip round" IsChecked="{Binding ActivityDebug, Mode=TwoWay}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource RmIconCheck}" Width="8" Height="8"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding $parent[ToggleButton].IsChecked}" />
+                        <TextBlock Text="Debug" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </ToggleButton>
+                  </StackPanel>
+                  <!-- ACTIONS. -->
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                              Margin="10,0,0,0" VerticalAlignment="Center">
+                    <!--
+                      The other half of "turns itself off when you scroll up". That
+                      disarm is right, and it was SILENT: lines kept arriving below the
+                      viewport and the log simply looked stopped. This appears only when
+                      it has something to offer — Follow off, and the newest line off
+                      screen — so it is an answer to a question you are already asking
+                      rather than another control to read past.
+                    -->
+                    <Button Classes="quiet" Content="Jump to newest"
+                            IsVisible="{Binding ActivityCanJump}"
+                            Click="OnActivityJumpToNewest"
+                            AutomationProperties.Name="Jump to the newest line and follow again" />
+                    <Button Classes="quiet" Content="Copy all"
+                            Command="{Binding CopyActivityLogCommand}" />
+                    <Button Classes="quiet" Content="Open log"
+                            Command="{Binding OpenLogFolderCommand}" />
+                  </StackPanel>
+
+                  <!--
+                    Bug 2 · the Follow control.
+
+                    Our own pill, not Fluent's ToggleSwitch. R6 replaced that control
+                    everywhere else for a stated reason — it is built for a 32px row,
+                    carries its own minimums and ships compiled — and this was the last
+                    one left, sitting in a dock toolbar beside 20px chips.
+
+                    A pill rather than a chip on purpose: All / Warn / Debug beside it
+                    are FILTERS, and Follow is a mode. Same toolbar, different shape,
+                    because they are different kinds of thing.
+                  -->
+                  <!-- INPUT / mode. -->
+                  <ToggleButton Grid.Column="2" Classes="pill" Content="Follow"
+                                Margin="10,0,0,0" VerticalAlignment="Center"
+                                IsChecked="{Binding ActivityFollow, Mode=TwoWay}"
+                                AutomationProperties.Name="Follow the log"
+                                ToolTip.Tip="Scroll to the newest line as it arrives — turns itself off when you scroll up" />
+
+                  <!-- TEXT, right-aligned: a count, which is where counts go. -->
+                  <TextBlock Grid.Column="4" Classes="small ter" VerticalAlignment="Center"
+                             Margin="10,0,0,0"
+                             Text="{Binding ActivityLines.Count, StringFormat='{}{0} lines this session'}" />
+                </Grid>
+              </dock:DockTabShell.Toolbar>
+
+              <dock:DockTabShell.Master>
+                <Panel>
+                <!-- The one tab that had no empty state (T2): a blank log pane could
+                     not be told from a rendering failure — in the tab built for
+                     diagnosing failures. -->
+                <StackPanel IsVisible="{Binding !VisibleActivityLines.Count}" Spacing="8"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            MaxWidth="360" Margin="16">
+                  <TextBlock Text="Nothing at this level yet" Classes="title" HorizontalAlignment="Center" />
+                  <TextBlock Classes="small ter" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="Lines appear here as work happens. A quieter chip hides the rest — All shows everything from Info up." />
+                </StackPanel>
+                <ScrollViewer x:Name="ActivityScroller">
+                  <!-- A virtualizing ItemsControl rather than the guide's
+                       ItemsRepeater: the latter is not in Avalonia 12's default
+                       XAML namespace here. Virtualization is what matters — 2f
+                       says 10k lines is normal — and a VirtualizingStackPanel
+                       gives that.
+
+                       The 4,2 gutter is a Margin here, not Padding on the
+                       ScrollViewer: padding there is subtracted from the scrollable
+                       extent rather than added to it, so the last rows become
+                       unreachable. Measured on Settings, where it cost 32px and the
+                       scrollbar with it. It matters more here than anywhere, because
+                       the bottom of this list is the newest line and Follow's whole
+                       job is to keep it in view. -->
+                  <ItemsControl ItemsSource="{Binding VisibleActivityLines}" Margin="4,2">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="diag:LogEntry">
+                        <Grid ColumnDefinitions="Auto,6,Auto,6,Auto,8,*" Margin="4,1">
+                          <TextBlock Grid.Column="0" Classes="mono ter"
+                                     Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.fff}'}" />
+                          <!-- LevelText, not Level: the panel must be byte-identical to
+                               the on-disk log (2f), and Level.ToString() renders "Info"
+                               against the file's "INFO ". -->
+                          <TextBlock Grid.Column="2" Classes="mono" Text="{Binding LevelText}"
+                                     Classes.warn="{Binding IsWarn}" Classes.bad="{Binding IsError}" />
+                          <TextBlock Grid.Column="4" Classes="mono ter" Text="{Binding Subsystem}" />
+                          <TextBlock Grid.Column="6" Classes="mono sec" Text="{Binding Message}"
+                                     Classes.warn="{Binding IsWarn}" Classes.bad="{Binding IsError}"
+                                     TextWrapping="Wrap" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+                </Panel>
+              </dock:DockTabShell.Master>
+            </dock:DockTabShell>
+          </TabItem>
+        </TabControl>
+      </DockPanel>
+    </Grid>
+
+
+  </DockPanel>
+
+    <!-- The command palette overlay stood here and is GONE (O10, owner's call): in
+         daily use it saw no use at all. Everything it reached is reachable from the
+         menus, the toolbar and the row context menus, each of which says where it
+         lives; the palette was a second route that had to be kept in step with all
+         of them. -->
+
+    <!-- The load state, covering the WHOLE window (owner's call, N7d — it used to
+         cover only the panes with the chrome left live, and a menu bar that takes
+         clicks over lists that are mid-rebuild is an invitation to edit a half
+         truth). Opaque and hit-testable, so it blocks by covering rather than by
+         disabling thirty controls one forgotten flag at a time. -->
+    <shell:ScanStateView />
+
+    <!--
+      Drag ghost layer (3a §1). A Canvas rather than an AdornerLayer: the ghost has to
+      cross both panes and the gap between them, and an adorner is clipped to the
+      control it adorns. Never hit-testable — it must not eat the drop it is
+      describing.
+    -->
+    <Canvas x:Name="DragGhostLayer" IsHitTestVisible="False" />
+
+  </Panel>
+  </LayoutTransformControl>
+</Window>

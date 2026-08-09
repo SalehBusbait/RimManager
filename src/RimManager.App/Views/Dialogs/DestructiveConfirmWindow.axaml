@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.DestructiveConfirmWindow"
+        x:DataType="vm:DestructiveConfirmViewModel"
+        Title="Confirm" Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    2i-6 · the ONE destructive confirm. 440px, one shape for all of them — the shape is
+    the safety feature: someone who has read one of these knows where the consequence
+    sentence is and what the primary button will say.
+
+    Modal, and one of only three surfaces in the app that is (#4). It blocks because a
+    wrong click destroys data.
+  -->
+  <StackPanel Margin="20" Spacing="14">
+
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <!-- The danger circle. Shape AND colour: colour alone is not a signal (guide §10). -->
+      <Border Width="32" Height="32" CornerRadius="16" VerticalAlignment="Top"
+              Background="{DynamicResource RmDangerTintBrush}">
+        <PathIcon Data="{StaticResource RmIconWarning}" Width="15" Height="15"
+                  Foreground="{DynamicResource RmDangerBrush}" />
+      </Border>
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding Title}" Classes="title" TextWrapping="Wrap" />
+        <!-- Says what is lost AND what is not. The second half is why this reads as a
+             decision rather than a threat. -->
+        <TextBlock Text="{Binding Body}" Classes="small sec" TextWrapping="Wrap"
+                   HorizontalAlignment="Left" MaxWidth="340" />
+      </StackPanel>
+    </StackPanel>
+
+    <ToggleButton Classes="pill" IsVisible="{Binding HasSafety}"
+                  Content="{Binding SafetyLabel}"
+                  IsChecked="{Binding SafetyChosen, Mode=TwoWay}" />
+
+    <Grid ColumnDefinitions="*,Auto,Auto">
+      <!-- Cancel first and focused: the safe option is the one the keyboard lands on. -->
+      <Button Grid.Column="1" Classes="quiet" Content="Cancel" Margin="0,0,6,0"
+              IsCancel="True" Click="OnCancel" />
+      <!-- The verb, never "OK". Not IsDefault: Enter must not destroy anything. -->
+      <Button Grid.Column="2" Classes="danger" Content="{Binding Verb}"
+              Click="OnConfirm" />
+    </Grid>
+  </StackPanel>
+</Window>

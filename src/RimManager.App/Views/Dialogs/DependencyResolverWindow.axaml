@@ -1,0 +1,109 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.DependencyResolverWindow"
+        x:DataType="vm:DependencyResolverViewModel"
+        Title="Resolve missing dependencies"
+        Width="640" Height="540" MinWidth="520" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    2i-4 · one card per unmet dependency, with the actions that state allows. Modal, and
+    one of only three surfaces that is (#4): it activates mods and downloads files.
+  -->
+  <DockPanel Margin="18,14">
+
+    <StackPanel DockPanel.Dock="Top" Spacing="3" Margin="0,0,0,12">
+      <TextBlock Text="Missing dependencies" Classes="title" />
+      <TextBlock Text="{Binding Summary}" Classes="small ter" />
+    </StackPanel>
+
+    <!-- 2i-4's footer: the sort opt-in, Close, and the primary. -->
+    <Border DockPanel.Dock="Bottom" Height="{DynamicResource RmCommitBarHeight}" Margin="0,12,0,0"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+          <ToggleButton Classes="pill" Content="Sort the load order after resolving"
+                        IsChecked="{Binding SortAfterResolving, Mode=TwoWay}" />
+          <TextBlock Text="{Binding Status}" Classes="small ter"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <Button Grid.Column="1" Classes="quiet" Content="Close" Margin="0,0,6,0"
+                IsCancel="True" Click="OnClose" />
+        <Button Grid.Column="2" Classes="accent" Content="Activate all that can be"
+                Command="{Binding ResolveAllCommand}"
+                IsEnabled="{Binding HasResolvable}" ToolTip.ShowOnDisabled="True"
+                ToolTip.Tip="Activates every dependency that is already installed. Downloads are left to you — each is a network call of unknown length." />
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:UnmetDependencyViewModel">
+            <Border Classes="card" Padding="12,10" Margin="0,0,0,8">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="1">
+                    <TextBlock Text="{Binding DisplayName}" Classes="pri"
+                               TextTrimming="CharacterEllipsis" />
+                    <!-- The identity, always: two mods can share a display name. -->
+                    <TextBlock Text="{Binding PackageIdText}" Classes="small mono ter"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding StateText}" Classes="small warn"
+                             VerticalAlignment="Center" Margin="12,0,0,0" />
+                </Grid>
+
+                <TextBlock Text="{Binding RequiredByText}" Classes="small sec"
+                           TextWrapping="Wrap" HorizontalAlignment="Left" />
+
+                <!-- Says why nothing can be offered, rather than showing dead buttons. -->
+                <TextBlock Text="{Binding Unactionable}" Classes="note"
+                           IsVisible="{Binding HasUnactionable}" />
+
+                <StackPanel Orientation="Horizontal" Spacing="6"
+                            IsVisible="{Binding IsPending}">
+                  <Button Classes="accent" Content="Activate"
+                          IsVisible="{Binding CanActivate}"
+                          Command="{Binding $parent[Window].((vm:DependencyResolverViewModel)DataContext).ActivateCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Classes="quiet" Content="Download via SteamCMD"
+                          IsVisible="{Binding CanDownload}"
+                          Command="{Binding $parent[Window].((vm:DependencyResolverViewModel)DataContext).DownloadCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Classes="quiet" Content="Open on Workshop"
+                          IsVisible="{Binding CanOpenWorkshop}"
+                          Command="{Binding $parent[Window].((vm:DependencyResolverViewModel)DataContext).OpenWorkshopCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Classes="quiet" Content="Ignore"
+                          Command="{Binding $parent[Window].((vm:DependencyResolverViewModel)DataContext).IgnoreCommand}"
+                          CommandParameter="{Binding}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsResolved}">
+                  <PathIcon Data="{StaticResource RmIconCheck}" Width="10" Height="10"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource RmSuccessBrush}" />
+                  <TextBlock Text="{Binding Outcome}" Classes="small ok" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- The way BACK (UI audit): Ignore was written as a toggle but its
+                     un-ignore branch was unreachable — the only button that invoked
+                     it lived in the pending panel, which hides the moment a row is
+                     ignored. -->
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsIgnored}">
+                  <TextBlock Text="Ignored for now" Classes="small ter" VerticalAlignment="Center" />
+                  <Button Classes="quiet" Content="Undo"
+                          Command="{Binding $parent[Window].((vm:DependencyResolverViewModel)DataContext).IgnoreCommand}"
+                          CommandParameter="{Binding}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

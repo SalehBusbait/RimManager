@@ -1,0 +1,122 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Icon geometries. AVALONIA_GUIDE.md §7: the mockup uses Unicode glyphs
+    (⚠ ↑ ⚡ ⟲ ⧉ ≡ ⋮⋮ ★ ✓ ✕) because HTML makes that free — DO NOT SHIP THEM.
+    They render differently on all three platforms and several are missing from
+    default Linux fonts entirely, where a missing-glyph box is a visible bug.
+
+    Usage:  <PathIcon Data="{StaticResource RmIconWarning}" Width="12" Height="12" />
+    Sizes in use: 10 (badges), 12 (rows, tabs), 13-14 (dialog headers).
+
+    All geometries are authored on a 24x24 grid and are stroke-less filled paths —
+    anything with hairlines shimmers at 100% scaling. Counters (the bang inside a
+    triangle, the hole in a magnifier) are punched by the default EvenOdd fill
+    rule via a second subpath, so they inherit the surrounding colour correctly.
+  -->
+
+  <!-- ============================== status =============================== -->
+  <StreamGeometry x:Key="RmIconCheck">M9.2 18.6 2.4 11.8 4.5 9.7 9.2 14.4 19.5 4.1 21.6 6.2Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconClose">M19.1 6.3 17.7 4.9 12 10.6 6.3 4.9 4.9 6.3 10.6 12 4.9 17.7 6.3 19.1 12 13.4 17.7 19.1 19.1 17.7 13.4 12Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconWarning">M12 2.5 23.2 21.5H0.8Z M11 9.5h2v6h-2z M11 17h2v2h-2z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconError">M12 2.2a9.8 9.8 0 1 1 0 19.6 9.8 9.8 0 0 1 0-19.6Z M11 6.5h2v7.5h-2z M11 16h2v2.2h-2z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconInfo">M12 2.2a9.8 9.8 0 1 1 0 19.6 9.8 9.8 0 0 1 0-19.6Z M11 10h2v8h-2z M11 5.9h2v2.4h-2z</StreamGeometry>
+
+  <!-- ========================= dock tab glyphs =========================== -->
+  <!-- Warnings reuses RmIconWarning. -->
+  <StreamGeometry x:Key="RmIconUpdate">M12 3 20 11h-5v10H9V11H4Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconConflict">M13 2 4 14h6l-1 8 9-12h-6Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconCycle">M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4Z</StreamGeometry>
+  <!-- Two half-arcs chasing each other — deliberately NOT RmIconCycle, which is a single
+       arc and already means "a dependency cycle" in Warnings. One mark, one meaning. -->
+  <StreamGeometry x:Key="RmIconRefresh">M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8Zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconHistory">M13 3a9 9 0 0 0-9 9H1l3.9 3.9.07.14L9 12H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3Zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconActivity">M3 5h18v2H3Z M3 11h18v2H3Z M3 17h12v2H3Z</StreamGeometry>
+
+  <!-- ============================ navigation ============================= -->
+  <StreamGeometry x:Key="RmIconChevronDown">M6.6 8.6 12 14l5.4-5.4 1.6 1.6-7 7-7-7Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconChevronRight">M8.6 17.4 14 12 8.6 6.6l1.6-1.6 7 7-7 7Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconExternal">M14 3h7v7h-2.2V6.8l-8 8L9.2 13.2l8-8H14Z M4 6h6v2.2H6.2v9.6h9.6V14H18v6H4Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconSearch">M10.5 3a7.5 7.5 0 0 1 5.9 12.1l5 5-1.5 1.5-5-5A7.5 7.5 0 1 1 10.5 3Zm0 2.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconFolder">M2.5 5h7l2 2.4h10V19h-19Z</StreamGeometry>
+  <!-- The strip identity icons (T5, S-STRIPS): offline = slashed cloud, mod-changes =
+       folder-delta, game-moved = move-arrows. Each strip's icon names its CAUSE, so
+       the three notices stop sharing one warning triangle. Even-odd fill makes the
+       overlaps read as cutouts, the same trick the warning triangle's bang uses. -->
+  <StreamGeometry x:Key="RmIconCloudOff">M6.5 18a4.5 4.5 0 0 1-.4-8.98A6 6 0 0 1 17.7 8.2 4.4 4.4 0 0 1 17.6 18Z M3.3 4.7 4.7 3.3 20.7 19.3 19.3 20.7Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconFolderDelta">M2.5 5h7l2 2.4h10V19h-19Z M12 8.6 16.6 16.4H7.4Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconMoveArrow">M12 3.2 16.4 8.4H7.6Z M10.7 8.4h2.6v3h-2.6Z M12 20.8 7.6 15.6h8.8Z M10.7 12.6h2.6v3h-2.6Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconKebab">M12 4.4a1.9 1.9 0 1 1 0 3.8 1.9 1.9 0 0 1 0-3.8Z M12 10.1a1.9 1.9 0 1 1 0 3.8 1.9 1.9 0 0 1 0-3.8Z M12 15.8a1.9 1.9 0 1 1 0 3.8 1.9 1.9 0 0 1 0-3.8Z</StreamGeometry>
+  <!-- S-DRIFT's hollow dot: never-applied. A ring, not a fill — the state is the
+       absence of an apply, and the shape says so without colour. -->
+  <StreamGeometry x:Key="RmIconDotHollow">M12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z</StreamGeometry>
+  <!-- The kebab turned on its side — the toolbar overflow's ⋯ was the last Unicode
+       glyph doing icon work in the chrome (T2, non-negotiable #12). -->
+  <StreamGeometry x:Key="RmIconEllipsis">M4.4 12a1.9 1.9 0 1 1 3.8 0 1.9 1.9 0 0 1-3.8 0Z M10.1 12a1.9 1.9 0 1 1 3.8 0 1.9 1.9 0 0 1-3.8 0Z M15.8 12a1.9 1.9 0 1 1 3.8 0 1.9 1.9 0 0 1-3.8 0Z</StreamGeometry>
+  <!-- Three EQUAL bars, for the collapsed menu bar below 900px (C5). Deliberately not
+       RmIconActivity, which is three bars with a short third one and is the Activity
+       tab's identity icon — reusing it would make the menu button read as that tab.
+       The ☰ this replaces was U+2630: below 900px that one item IS the menu bar, so on
+       a font without the codepoint every menu in the app hid behind a tofu box. -->
+  <StreamGeometry x:Key="RmIconMenu">M3 6h18v2H3Z M3 11h18v2H3Z M3 16h18v2H3Z</StreamGeometry>
+
+  <!-- ============================== actions ============================== -->
+  <StreamGeometry x:Key="RmIconUndo">M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62A7.45 7.45 0 0 1 12.5 10.5c3.54 0 6.55 2.31 7.6 5.5l2.37-.78A10.005 10.005 0 0 0 12.5 8Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconRedo">M18.4 10.6A9.96 9.96 0 0 0 11.5 8c-4.51 0-8.34 2.94-9.68 7l2.37.78A7.501 7.501 0 0 1 11.5 10.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconPlus">M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7Z</StreamGeometry>
+
+  <!-- N6 · the conflict marks beside the ⚡, MO2's grammar: + overwrites, − overwritten;
+       "both" is composed from the two marks stacked, so each half keeps its singular
+       colour. Authored as geometries like everything else (#12). Thick bars on
+       purpose — these render at 6-7px, where RmIconPlus's 2px arms vanish. -->
+  <StreamGeometry x:Key="RmIconOverwriting">M9 3h6v6h6v6h-6v6H9v-6H3V9h6Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconOverwritten">M3 9h18v6H3Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconMinus">M4 11h16v2H4Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconFavorite">M12 2.6 15 9.1l7.1.8-5.3 4.8 1.5 7L12 18.2 5.7 21.7l1.5-7L1.9 9.9 9 9.1Z</StreamGeometry>
+  <!-- ✎ for "rename this" (O26). A real geometry, not a glyph — and authored here
+       rather than borrowed, because a MISSING resource key resolves to null and draws
+       nothing at all: the button would have rendered as an empty 10px gap that still
+       took the click. -->
+  <StreamGeometry x:Key="RmIconEdit">M4 16.2 15.1 5.1l3.8 3.8L7.8 20H4Zm12.5-12.5 1.4-1.4a1.5 1.5 0 0 1 2.1 0l1.7 1.7a1.5 1.5 0 0 1 0 2.1l-1.4 1.4Z</StreamGeometry>
+
+  <!-- ============================== rows ================================= -->
+  <!-- Git branch, for the ⎇ dirty-working-tree row status. -->
+  <StreamGeometry x:Key="RmIconGitBranch">M6 3a3 3 0 0 1 1 5.83v6.34a3 3 0 1 1-2 0V8.83A3 3 0 0 1 6 3Zm12 0a3 3 0 0 1 1 5.83V10a5 5 0 0 1-5 5h-3.2v-2.2H14a2.8 2.8 0 0 0 2.8-2.8V8.83A3 3 0 0 1 18 3Z</StreamGeometry>
+  <StreamGeometry x:Key="RmIconDot">M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z</StreamGeometry>
+
+  <!-- ============================ mod source ============================= -->
+  <!--
+    The SRC badge's six glyphs (N1). They replace the single letters W/L/C/D/G/P.
+
+    They are drawn at NINE pixels inside a 14px badge, which is the whole constraint:
+    at 9px a glyph is a silhouette and nothing else. So each one is ONE closed mass
+    with no interior detail — no hairlines, no counters, no two-part compositions that
+    merge into a blob. The pairs that have to stay apart at a glance are Core vs DLC
+    (solid box vs box-with-a-notch) and Workshop vs Local (cloud vs folder); the tint
+    behind them is a second signal, and the tooltip a third, since colour is never the
+    only carrier (#11).
+
+    Git reuses RmIconGitBranch, which already exists for the ⎇ row status — the same
+    mark for the same concept in two places is the point.
+  -->
+  <!-- Core: a solid block. The base game is the one thing under everything else. -->
+  <StreamGeometry x:Key="RmIconSourceCore">M4 4h16v16H4Z</StreamGeometry>
+  <!-- DLC: the same block with its top-right corner cut away — an addition to Core,
+       and the notch survives at 9px where an inset "+" would not. -->
+  <StreamGeometry x:Key="RmIconSourceDlc">M4 4h10v6h6v10H4Z M16 4h4v4h-4Z</StreamGeometry>
+  <!-- Workshop: a cloud. Not Valve's logo — that is a trademark, and this column says
+       "came down from a service", which a cloud says without borrowing a mark. -->
+  <StreamGeometry x:Key="RmIconSourceWorkshop">M7 19a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.7 9.2 4.4 4.4 0 0 1 17.5 19Z</StreamGeometry>
+  <!-- Local: a folder, the same tab-and-body shape as RmIconFolder so "a folder on
+       this disk" reads identically wherever it appears. -->
+  <StreamGeometry x:Key="RmIconSourceLocal">M3 5h7l2 2.5h9V19H3Z</StreamGeometry>
+
+  <!-- ========================== dock chrome (2a) ========================= -->
+  <!-- The strip's right side: maximise the dock to half the window, and restore it
+       to the tab's remembered height. Two opposed corner brackets read as "grow"
+       at 11px where a diagonal arrow pair turns to mush. -->
+  <StreamGeometry x:Key="RmIconMaximise">M3 3h8v2.2H5.2V11H3Z M13 3h8v8h-2.2V5.2H13Z M3 13h2.2v5.8H11V21H3Z M18.8 13H21v8h-8v-2.2h5.8Z</StreamGeometry>
+
+  <!-- The dock height readout's leading glyph: a vertical resize bar. -->
+  <StreamGeometry x:Key="RmIconHeight">M12 2 16 7H8Z M12 22 8 17h8Z M4 11h16v2H4Z</StreamGeometry>
+</ResourceDictionary>

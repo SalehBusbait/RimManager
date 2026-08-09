@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.OfflineStripView"
+             x:DataType="vm:MainWindowViewModel"
+             IsVisible="{Binding ShowOfflineStrip}">
+  <!--
+    2k · STATE, OFFLINE. A strip, never a window: "RimManager never shows a full-window
+    error for a network problem." Degradation is per feature — Updates keeps its last
+    result with a `stale` badge, the status bar's rules zone reads `cached`, and the
+    SteamCMD download route says why it cannot run.
+
+    T5 put it on the shared strip band (S-STRIPS): h32, one line, the slashed-cloud
+    identity icon — the CAUSE, not a generic triangle — headline 12/600, detail inline
+    with the whole sentence in the tooltip, Retry as the accent-weight primary.
+
+    Dismissible, and it comes back on the next failure. A notice that can be silenced
+    for ever is one that stops meaning anything.
+  -->
+  <Border Classes="strip warn" AutomationProperties.Name="Offline notice">
+    <Grid ColumnDefinitions="Auto,10,Auto,8,*,10,Auto,4,Auto">
+
+      <PathIcon Grid.Column="0" Classes="stripIcon" Data="{StaticResource RmIconCloudOff}"
+                Width="13" Height="13" VerticalAlignment="Center" />
+
+      <TextBlock Grid.Column="2" Text="Offline — updates and rule sync paused"
+                 FontSize="{DynamicResource RmFontSizeBody}" FontWeight="SemiBold"
+                 Foreground="{DynamicResource RmTextPrimaryBrush}"
+                 VerticalAlignment="Center" />
+
+      <!-- A Grid star column, never a horizontal StackPanel: infinite width is what
+           keeps TextTrimming from ever engaging. The tooltip carries the sentence
+           whole; the line shows what fits. -->
+      <TextBlock Grid.Column="4" Text="{Binding OfflineDetail}" Classes="small sec"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                 ToolTip.Tip="{Binding OfflineDetail}" />
+
+      <Button Grid.Column="6" Classes="stripPrimary" Content="Retry"
+              Command="{Binding RetryNetworkCommand}" VerticalAlignment="Center" />
+
+      <Button Grid.Column="8" Classes="affordance" Padding="4" VerticalAlignment="Center"
+              Command="{Binding DismissOfflineStripCommand}"
+              AutomationProperties.Name="Dismiss the offline notice">
+        <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

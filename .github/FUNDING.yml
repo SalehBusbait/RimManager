@@ -1,0 +1,12 @@
+# Renders the "Sponsor" button on the repository page. Public repos only.
+#
+# Ko-fi takes 0% on one-off donations and needs no account from the donor, which
+# suits a project where support is support and buys nothing. Deliberately NOT
+# Patreon: it is built around tiers and rewards, which would push toward exactly
+# the gatekeeping this project does not do.
+#
+# github: is left out on purpose for now — GitHub Sponsors is 0% too and would sit
+# right here in the repo, but it needs a supported country and Stripe Connect.
+# Uncomment with the account name once that is set up.
+ko_fi: salehbusubait
+# github: [SalehBusbait]

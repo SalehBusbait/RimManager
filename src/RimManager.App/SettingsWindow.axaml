@@ -1,0 +1,1327 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        xmlns:conv="using:RimManager.App.Converters"
+        xmlns:ctl="using:RimManager.App.Views.Controls"
+        x:Class="RimManager.App.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings" Width="960" Height="640"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    1c · Settings. A 172px rail of seven pages, a scrolling body, and a 44px commit
+    bar. Modal only in the sense that it is its own window: Apply is the one thing
+    that is never a modal (#4), and this is not Apply.
+
+    Every path field validates live and reports WHAT IT FOUND, not merely whether the
+    folder exists — a path that exists but holds the wrong thing is the failure mode
+    that costs an afternoon.
+  -->
+  <Window.Resources>
+    <!--
+      The line under every path field. Colour carries the verdict, but never alone:
+      a glyph and the wording do too, and the wording says WHAT WAS FOUND rather than
+      "valid" — "✓ folder exists" would hide a folder holding the wrong thing.
+    -->
+    <DataTemplate x:Key="PathCheckTemplate" x:DataType="vm:PathCheck">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <PathIcon Data="{StaticResource RmIconCheck}" Width="9" Height="9"
+                  VerticalAlignment="Center" IsVisible="{Binding IsOk}"
+                  Foreground="{DynamicResource RmSuccessBrush}" />
+        <PathIcon Data="{StaticResource RmIconClose}" Width="9" Height="9"
+                  VerticalAlignment="Center" IsVisible="{Binding IsMissing}"
+                  Foreground="{DynamicResource RmDangerBrush}" />
+        <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9"
+                  VerticalAlignment="Center" IsVisible="{Binding IsWarning}"
+                  Foreground="{DynamicResource RmWarningBrush}" />
+
+        <TextBlock Text="{Binding Message}" Classes="small" VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Classes.ok="{Binding IsOk}"
+                   Classes.bad="{Binding IsMissing}"
+                   Classes.warn="{Binding IsWarning}"
+                   Classes.ter="{Binding IsNotSet}" />
+
+        <!-- The inline fix beside a problem ("Locate…", "Auto-detect"). A Button, not a
+             styled TextBlock: it performs an action, so it has to be focusable and
+             clickable. The handler dispatches on the action text, which is unambiguous
+             because each verdict offers the fix for its own field. -->
+        <Button Content="{Binding Action}" Classes="quiet"
+                IsVisible="{Binding HasAction}"
+                Click="OnPathAction" />
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel>
+
+    <!-- ======================= 172px page rail ========================== -->
+    <Border DockPanel.Dock="Left" Width="{DynamicResource RmSettingsRailWidth}"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,1,0">
+      <DockPanel>
+        <!-- The rail footer named where the config lives. Removed: at 172px the path
+             wrapped mid-word ("...Local\Rim" / "Manager"), so the one thing it existed
+             to be - a path you could read and use - was the thing it could not be. The
+             rail is navigation; a raw path pinned under it is not. Advanced ▸ Open log
+             folder still opens the same tree one level down, at AppPaths.Root/logs, and
+             since O5 so does Open backup folder (AppPaths.Root/backups) — it used to
+             open the GAME's config folder, which is where the backups used to land. -->
+
+        <ListBox Classes="rows" AutomationProperties.Name="Settings pages"
+                 SelectedIndex="{Binding PageIndex, Mode=TwoWay}"
+                 Background="Transparent" Margin="0,8,0,0">
+          <ListBoxItem Content="Paths" Padding="12,6" />
+          <ListBoxItem Content="Sorting &amp; rules" Padding="12,6" />
+          <ListBoxItem Content="Integrations" Padding="12,6" />
+          <ListBoxItem Content="Appearance" Padding="12,6" />
+          <ListBoxItem Content="Tags &amp; metadata" Padding="12,6" />
+          <ListBoxItem Content="Modlists" Padding="12,6" />
+          <ListBoxItem Content="Advanced" Padding="12,6" />
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- ============================ page body =========================== -->
+    <DockPanel>
+
+      <!-- ========= the status band (T5, S-SETBAND), only when it speaks =========
+           At the TOP of the content column now, was a footer: a result reported at
+           the bottom of a 640px window is a result reported to nobody, and the top
+           is where the strips already taught the eye to look. Tone-tinted with the
+           strip vocabulary: ok and info FADE after four seconds, bad persists and
+           carries the one dismiss ×. In-flight work (SteamCMD's download) reports
+           at info without the fade — decision (a): the band carries operations,
+           rather than each card growing a busy pill.
+
+           History of the surface itself: it was a 44px commit bar whose three
+           buttons governed one page of seven; paths save as they are edited now,
+           so the buttons went and the line stayed. Bound to HasStatus, so it is
+           ABSENT rather than empty - a collapsed IsVisible gives the height back.
+
+           Still a Grid rather than a horizontal StackPanel. A StackPanel measures
+           its children with infinite width, so TextTrimming could never engage and
+           a long message would push its own line off the right-hand edge. -->
+      <Border DockPanel.Dock="Top" IsVisible="{Binding HasStatus}"
+              Classes="strip"
+              Classes.ok="{Binding IsStatusOk}"
+              Classes.info="{Binding IsStatusInfo}"
+              Classes.bad="{Binding IsStatusBad}"
+              AutomationProperties.Name="Settings status">
+        <Grid ColumnDefinitions="Auto,10,*,10,Auto" ClipToBounds="True">
+          <!-- stripIcon: the band's tone class colours these, the strip family's own
+               mechanism — a hand-set brush here could disagree with the band. -->
+          <PathIcon Grid.Column="0" Width="13" Height="13" VerticalAlignment="Center"
+                    Classes="stripIcon" Data="{StaticResource RmIconCheck}"
+                    IsVisible="{Binding IsStatusOk}" />
+          <PathIcon Grid.Column="0" Width="13" Height="13" VerticalAlignment="Center"
+                    Classes="stripIcon" Data="{StaticResource RmIconInfo}"
+                    IsVisible="{Binding IsStatusInfo}" />
+          <PathIcon Grid.Column="0" Width="13" Height="13" VerticalAlignment="Center"
+                    Classes="stripIcon" Data="{StaticResource RmIconWarning}"
+                    IsVisible="{Binding IsStatusBad}" />
+
+          <TextBlock Grid.Column="2" Text="{Binding Status}" Classes="small sec"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding Status}" />
+
+          <Button Grid.Column="4" Classes="affordance" Padding="4" VerticalAlignment="Center"
+                  IsVisible="{Binding IsStatusBad}"
+                  Command="{Binding DismissStatusCommand}"
+                  AutomationProperties.Name="Dismiss the status message">
+            <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- The gutter is a MARGIN on the content, never Padding on the ScrollViewer.
+           Padding there is subtracted from the scrollable extent instead of added to
+           it: measured on Advanced, the page wanted 667px and the extent came back
+           635 - short by exactly the 32px of vertical padding - so the last 32px could
+           never be scrolled to AND the scrollbar never appeared, because an extent
+           below the viewport reads as "nothing to scroll". A margin is measured as
+           part of the content, so it lands in the extent where it belongs. -->
+    <ScrollViewer>
+      <Panel Margin="20,16">
+
+        <!-- ============================= Paths ========================== -->
+        <StackPanel Spacing="14" IsVisible="{Binding IsPathsPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Paths" Classes="page" />
+            <TextBlock Classes="small ter"
+                       Text="Saved as you edit. Each path is validated live and reports what it found; changes take effect when you close Settings." />
+          </StackPanel>
+
+          <!-- Game install folder -->
+          <StackPanel Spacing="4">
+            <!-- O5 · three of the five fields on this page named what they were for and
+                 two did not, so the page read as if the described ones were the special
+                 cases. The wording says what is INSIDE the folder, because that is what
+                 someone browsing for it has to recognise. -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Game install folder" Classes="small sec" />
+              <TextBlock Text="— holds the RimWorld executable and Data/Core"
+                         Classes="small ter" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBox Grid.Column="0" Classes="inset" AutomationProperties.Name="RimWorld install folder" Text="{Binding GameDir, Mode=TwoWay}"
+                       Classes.invalid="{Binding GameCheck.IsMissing}" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="6,0,0,0"
+                      Click="OnBrowseGame" />
+              <Button Grid.Column="2" Classes="quiet" Content="Auto-detect" Margin="6,0,0,0"
+                      Command="{Binding AutoDetectCommand}" />
+            </Grid>
+            <ContentControl Content="{Binding GameCheck}"
+                            ContentTemplate="{StaticResource PathCheckTemplate}" />
+          </StackPanel>
+
+          <!-- Config folder -->
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Config folder" Classes="small sec" />
+              <TextBlock Text="— holds ModsConfig.xml" Classes="small ter" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Classes="inset" AutomationProperties.Name="Config folder" Text="{Binding ConfigDir, Mode=TwoWay}"
+                       Classes.invalid="{Binding ConfigCheck.IsMissing}" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="6,0,0,0"
+                      Click="OnBrowseConfig" />
+            </Grid>
+            <ContentControl Content="{Binding ConfigCheck}"
+                            ContentTemplate="{StaticResource PathCheckTemplate}" />
+          </StackPanel>
+
+          <!-- Local mods folder — derived, so read-only. -->
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Local mods folder" Classes="small sec" />
+              <TextBlock Text="— always &lt;game&gt;/Mods, where RimWorld looks"
+                         Classes="small ter" />
+            </StackPanel>
+            <TextBox Classes="inset derived" AutomationProperties.Name="Local mods folder" Text="{Binding LocalModsDir, Mode=OneWay}"
+                     IsReadOnly="True" />
+            <ContentControl Content="{Binding LocalModsCheck}"
+                            ContentTemplate="{StaticResource PathCheckTemplate}" />
+          </StackPanel>
+
+          <!-- Steam Workshop folder -->
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Steam Workshop folder" Classes="small sec" />
+              <!-- 294100 is RimWorld's app id: the folder is named after it, so naming it
+                   here is what lets someone find it among the other numbered folders. -->
+              <TextBlock Text="— …/steamapps/workshop/content/294100, where subscribed mods land"
+                         Classes="small ter" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Classes="inset" AutomationProperties.Name="Steam Workshop folder" Text="{Binding WorkshopDir, Mode=TwoWay}"
+                       Classes.invalid="{Binding WorkshopCheck.IsMissing}" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="6,0,0,0"
+                      Click="OnBrowseWorkshop" />
+            </Grid>
+            <ContentControl Content="{Binding WorkshopCheck}"
+                            ContentTemplate="{StaticResource PathCheckTemplate}" />
+          </StackPanel>
+
+          <!-- SteamCMD folder -->
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="SteamCMD folder" Classes="small sec" />
+              <TextBlock Text="— optional, used by Collection download" Classes="small ter" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBox Grid.Column="0" Classes="inset" AutomationProperties.Name="SteamCMD folder" Text="{Binding SteamCmdDir, Mode=TwoWay}"
+                       PlaceholderText="not set" />
+              <Button Grid.Column="1" Classes="quiet" Content="Browse…" Margin="6,0,0,0"
+                      Click="OnBrowseSteamCmd" />
+              <!-- 1c puts this in the ROW, beside Browse, rather than in the verdict
+                   line: it starts a ~250 MB download, so it needs somewhere to report
+                   progress and something to disable while it runs. -->
+              <Button Grid.Column="2" Classes="quiet" Margin="6,0,0,0"
+                      Content="Install for me"
+                      Command="{Binding InstallSteamCmdCommand}"
+                      IsEnabled="{Binding !IsInstallingSteamCmd}"
+                      ToolTip.Tip="Fetches Valve's SteamCMD into RimManager's own folder. Anonymous downloads, no Steam login." />
+            </Grid>
+            <ContentControl Content="{Binding SteamCmdCheck}"
+                            ContentTemplate="{StaticResource PathCheckTemplate}" />
+          </StackPanel>
+
+          <!-- Three toggles stood here: "Watch folders for changes", "Back up
+               ModsConfig.xml before every Apply" and "Launch RimWorld after Apply".
+               Each was a plain view-model field, absent from IAppPreferences, never
+               persisted and never read - three controls that flipped, looked settled
+               and changed nothing, live since R6. Watching folders is N5's work;
+               backup-before-Apply is already unconditional in ApplyService, which
+               hard-codes backup:true; launch after Apply exists as the Apply and
+               launch action. Each returns as a real preference or not at all. -->
+        </StackPanel>
+
+        <!-- ======================= Sorting & rules ======================= -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsSortingPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Sorting &amp; rules" Classes="page" />
+            <TextBlock Classes="small ter"
+                       Text="These take effect immediately. Nothing in Settings waits for a Save." />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="SORT ALGORITHM" Classes="micro" />
+            <!-- Two cards rather than a dropdown: each carries the one line that says
+                 when you would want it, which a combo box has nowhere to put. -->
+            <!-- The log-level shape: IsChecked DISPLAYS, the command CHOOSES. As a
+                 TwoWay pair over an inverse property this wedged after a mode
+                 switch — the second click had nothing left to write. -->
+            <RadioButton Classes="card" GroupName="algorithm"
+                         IsChecked="{Binding Prefs.UseTopologicalSort}"
+                         Command="{Binding Prefs.ChooseTopologicalSort}">
+              <StackPanel Spacing="1">
+                <TextBlock Text="Topological" Classes="pri" />
+                <TextBlock Text="Dependencies and community rules decide the order. The default."
+                           Classes="note" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Classes="card" GroupName="algorithm"
+                         IsChecked="{Binding Prefs.UseAlphabeticalSort}"
+                         Command="{Binding Prefs.ChooseAlphabeticalSort}">
+              <StackPanel Spacing="1">
+                <TextBlock Text="Alphabetical within separators" Classes="pri" />
+                <TextBlock Text="Sorts inside each group and never moves a separator. For lists you have already arranged by hand."
+                           Classes="note" />
+              </StackPanel>
+            </RadioButton>
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <TextBlock Text="BEHAVIOUR" Classes="micro" />
+            <!-- "Keep separators intact" is GONE (UI audit): the pref was read by
+                 nothing and no coherent semantic exists — a topological sort decides
+                 a global order, and separators owning stale spans inside it would be
+                 lying about their groups. "Sort into tier groups" (Auto-layout) is
+                 the sorted-WITH-separators story. The pref retires in N11. -->
+            <ToggleButton Classes="pill" Content="Snapshot before every sort"
+                          IsChecked="{Binding Prefs.SnapshotBeforeSorting, Mode=TwoWay}" />
+            <ToggleButton Classes="pill" Content="Open the dock on Warnings when a sort breaks a cycle"
+                          IsChecked="{Binding Prefs.OpenDockOnCycleBreak, Mode=TwoWay}" />
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Sort automatically after activating a mod"
+                            IsChecked="{Binding Prefs.AutoSortAfterActivate, Mode=TwoWay}" />
+              <!-- The reason is printed, not left as an unexplained default (#8). -->
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="Off by default: activating mods is how you explore a list, and re-sorting on every click moves the row you were about to read." />
+            </StackPanel>
+          </StackPanel>
+
+          <!-- UI-11 (N7c): the community rules DATABASE card moved to Integrations —
+               the one page for "things fetched from elsewhere". This page keeps
+               sorting, and the rule editor: your own rules are yours, not fetched. -->
+          <StackPanel Spacing="6">
+            <TextBlock Text="YOUR RULES" Classes="micro" />
+            <Button Classes="quiet" Content="Rule editor…" HorizontalAlignment="Left"
+                    Command="{Binding Prefs.OpenRuleEditor}" />
+            <!-- A rule of the product, not a setting — so it is stated, not offered. -->
+            <TextBlock Classes="note"
+                       Text="Your own rules always beat community rules. That is not configurable. The community databases themselves live on the Integrations page." />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- ========================= Integrations ========================= -->
+        <!--
+          Everything on this page is MEASURED, not configured: three cards reporting
+          what is on this machine, each with the toggles that govern how RimManager
+          uses it. So the wording says what we actually know — the count under Steam
+          is items INSTALLED (from Steam's own manifest), not items subscribed, which
+          would need a logged-in Web API call we deliberately never make.
+        -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsIntegrationsPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Integrations" Classes="page" />
+            <TextBlock Classes="small ter"
+                       Text="Each of these is optional — RimManager works with none of them installed." />
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Grid.Column="0" Text="STEAM" Classes="micro" VerticalAlignment="Center" />
+              <!-- Steam can be started while this window is open, so the page can be
+                   re-measured rather than being right only at the moment it opened. -->
+              <Button Grid.Column="1" Classes="quiet" Content="Re-check"
+                      HorizontalAlignment="Right"
+                      Command="{Binding LoadIntegrationsCommand}"
+                      IsEnabled="{Binding !IsProbingIntegrations}" />
+            </Grid>
+
+            <Border Classes="card" Padding="12,10">
+              <Grid ColumnDefinitions="Auto,*,Auto" >
+                <Border Grid.Column="0" Classes="intBadge intWorkshop" Margin="0,0,10,0">
+                  <TextBlock Text="W" Classes="mono" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding SteamHeadline}" Classes="pri" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SteamUses}" Classes="small ter" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="2" Classes="statePill" Classes.on="{Binding SteamRunning}">
+                  <TextBlock Text="{Binding SteamPill}" Classes="small" />
+                </Border>
+              </Grid>
+            </Border>
+
+            <Border Classes="card" Padding="12,10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Grid.Column="0" Classes="intBadge intLocal" Margin="0,0,10,0">
+                  <TextBlock Text="S" Classes="mono" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding SteamCmdUses}" Classes="pri" TextWrapping="Wrap" />
+                  <!-- WRAPPING, never TextTrimming. Trimming does not constrain layout:
+                       a non-wrapping TextBlock measures at its full natural text width,
+                       so the star column demanded more than the window had and the Auto
+                       column holding the buttons was pushed off the right edge. The path
+                       is elided in the STRING instead; the tooltip carries it whole. -->
+                  <TextBlock Text="{Binding SteamCmdDetail}" Classes="small mono ter"
+                             TextWrapping="Wrap"
+                             ToolTip.Tip="{Binding SteamCmdDetailTip}" />
+                </StackPanel>
+                <!-- Downloads Valve's bootstrapper into RimManager's OWN steamcmd dir,
+                     isolated from any system or RimSort install. -->
+                <Button Grid.Column="2" Classes="accent" Content="Install"
+                        VerticalAlignment="Center"
+                        Command="{Binding InstallSteamCmdCommand}"
+                        IsVisible="{Binding !SteamCmdInstalled}"
+                        IsEnabled="{Binding !IsInstallingSteamCmd}" />
+                <Border Grid.Column="2" Classes="statePill on" VerticalAlignment="Center"
+                        IsVisible="{Binding SteamCmdInstalled}">
+                  <TextBlock Text="installed" Classes="small" />
+                </Border>
+              </Grid>
+            </Border>
+
+            <!-- "Warn before unsubscribing" is GONE (UI audit): the pref gated a
+                 flow that does not exist — the app never unsubscribes anything;
+                 "Unsubscribe on Workshop…" opens the page and Steam does the deed.
+                 The toggle returns if an in-app unsubscribe ever ships. -->
+          </StackPanel>
+
+          <Border Classes="divider" Height="1" />
+
+          <StackPanel Spacing="10">
+            <TextBlock Text="GIT" Classes="micro" />
+
+            <Border Classes="card" Padding="12,10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Grid.Column="0" Classes="intBadge intGit" Margin="0,0,10,0">
+                  <TextBlock Text="G" Classes="mono" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding GitHeadline}" Classes="pri" TextWrapping="Wrap" />
+                  <!-- Same rule as the SteamCMD line above: wrap, and elide in the string. -->
+                  <TextBlock Text="{Binding GitPathLine}" Classes="small mono ter"
+                             TextWrapping="Wrap"
+                             ToolTip.Tip="{Binding GitPathTip}" />
+                </StackPanel>
+                <!-- The old reason named R7, which shipped without this — a disabled
+                     reason that references a schedule goes stale the day the schedule
+                     moves (T6). The reason now states the fact. -->
+                <Button Grid.Column="2" Classes="quiet" Content="Manage repos…"
+                        VerticalAlignment="Center" IsEnabled="False" ToolTip.ShowOnDisabled="True"
+                        ToolTip.Tip="The repo editor is not built yet. The count and each row's git glyph are live now." />
+              </Grid>
+            </Border>
+
+            <!-- The glyph is the REAL geometry the rows draw (RmIconGitBranch), not a
+                 Unicode ⎇. Two reasons: non-negotiable #12, since a font without the
+                 codepoint renders a missing-glyph box; and this label's whole job is to
+                 name the mark the list shows, so a different mark would misidentify it. -->
+            <ToggleButton Classes="pill"
+                          IsChecked="{Binding Prefs.ShowGitDirtyOnRows, Mode=TwoWay}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <TextBlock Text="Show" VerticalAlignment="Center" />
+                <PathIcon Data="{StaticResource RmIconGitBranch}" Width="11" Height="11"
+                          VerticalAlignment="Center"
+                          Foreground="{DynamicResource RmAccentBrush}" />
+                <TextBlock Text="on rows with uncommitted changes" VerticalAlignment="Center" />
+              </StackPanel>
+            </ToggleButton>
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Fetch tracked repos on startup"
+                            IsChecked="{Binding Prefs.FetchReposOnStartup, Mode=TwoWay}" />
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="Off by default: one network call per repo on every launch. Fetch is the only write RimManager ever makes to a repository — never pull, merge, checkout or reset, because a git mod is usually one you are editing." />
+            </StackPanel>
+
+            <!-- O5: this preference was honoured on every load and settable ONLY in the
+                 first-run wizard, which is skippable and re-runnable only from Help — so
+                 a user who skipped setup could never change it, and one who did not could
+                 never change their mind. It is a startup network call like the pill above
+                 it, which is why it belongs here rather than on Appearance. -->
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Check for mod updates on startup"
+                            IsChecked="{Binding Prefs.CheckModUpdatesOnStartup, Mode=TwoWay}" />
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="One batched Workshop query per launch, about two seconds, run unawaited so it never holds the mod lists up. The Updates tab's count is how the answer arrives; nothing opens by itself." />
+            </StackPanel>
+          </StackPanel>
+
+          <Border Classes="divider" Height="1" />
+
+          <!-- ==================== COMMUNITY DATABASES (N7c) ================= -->
+          <!-- UI-11: the one page for "things fetched from elsewhere". Three cards,
+               one grammar each: what it is, what we have (count · fetch date), and
+               the toggle that governs how RimManager uses it. One Sync for all
+               three — a user asked to "sync" should not need our taxonomy. -->
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Grid.Column="0" Text="COMMUNITY DATABASES" Classes="micro"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="quiet" Content="Sync now"
+                      HorizontalAlignment="Right"
+                      Command="{Binding Prefs.SyncRules}"
+                      ToolTip.Tip="Fetches all three databases and revalidates" />
+            </Grid>
+
+            <Border Classes="card" Padding="12,10">
+              <StackPanel Spacing="6">
+                <!-- The pill is one word; the status line beneath elaborates it. -->
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Load-order rules" Classes="pri"
+                             VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="statePill"
+                          Classes.on="{Binding Prefs.RulesPill.IsOn}"
+                          Classes.warn="{Binding Prefs.RulesPill.IsWarn}"
+                          Classes.bad="{Binding Prefs.RulesPill.IsBad}"
+                          ToolTip.Tip="{Binding Prefs.RulesPill.Tip}">
+                    <TextBlock Text="{Binding Prefs.RulesPill.Text}" Classes="small" />
+                  </Border>
+                </Grid>
+                <TextBlock Text="{Binding Prefs.RulesStatus}" Classes="small sec" TextWrapping="Wrap" />
+                <TextBlock Classes="note"
+                           Text="RimSort's Community-Rules-Database. Sorting works without it; it only adds ordering the mods themselves do not declare." />
+                <ToggleButton Classes="pill" Content="Use community rules when sorting and validating"
+                              IsChecked="{Binding Prefs.UseCommunityRules, Mode=TwoWay}" />
+                <!-- N7d · a custom source. Empty = the default, which the field shows
+                     rather than hiding — a placeholder is documentation that cannot
+                     go stale against the constant it mirrors only by review.
+                     O5 · a VISIBLE label, matching Paths. The field had an automation
+                     name and a placeholder and nothing on screen: the placeholder is the
+                     only thing naming it, and a placeholder disappears the moment you
+                     type — so the instant a custom URL exists, the field is unlabelled. -->
+                <TextBlock Text="Source URL" Classes="small sec" Margin="0,2,0,0" />
+                <TextBox Classes="inset mono" AutomationProperties.Name="Community rules source URL"
+                         Text="{Binding Prefs.CommunityRulesUrl, Mode=TwoWay}"
+                         PlaceholderText="https://raw.githubusercontent.com/RimSort/Community-Rules-Database/main/communityRules.json"
+                         ToolTip.Tip="Custom source URL for the rules database. Leave empty for the default. Takes effect on the next sync." />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card" Padding="12,10">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Mod replacements" Classes="pri"
+                             VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="statePill"
+                          Classes.on="{Binding Prefs.ReplacementsPill.IsOn}"
+                          Classes.warn="{Binding Prefs.ReplacementsPill.IsWarn}"
+                          Classes.bad="{Binding Prefs.ReplacementsPill.IsBad}"
+                          ToolTip.Tip="{Binding Prefs.ReplacementsPill.Tip}">
+                    <TextBlock Text="{Binding Prefs.ReplacementsPill.Text}" Classes="small" />
+                  </Border>
+                </Grid>
+                <TextBlock Text="{Binding Prefs.ReplacementsStatus}" Classes="small sec" TextWrapping="Wrap" />
+                <TextBlock Classes="note"
+                           Text="Mlie's UseThisInstead database. Flags installed mods whose maintained replacement supports your game version — advice, never a defect." />
+                <ToggleButton Classes="pill" Content="Flag mods that have a maintained replacement"
+                              IsChecked="{Binding Prefs.UseReplacementsDatabase, Mode=TwoWay}" />
+                <TextBlock Text="Source URL" Classes="small sec" Margin="0,2,0,0" />
+                <TextBox Classes="inset mono" AutomationProperties.Name="Replacements source URL"
+                         Text="{Binding Prefs.ReplacementsUrl, Mode=TwoWay}"
+                         PlaceholderText="https://raw.githubusercontent.com/emipa606/UseThisInstead/main/replacements.json.gz"
+                         ToolTip.Tip="Custom source URL for the replacements database (gzipped JSON). Leave empty for the default. Takes effect on the next sync." />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card" Padding="12,10">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Known-good mods" Classes="pri"
+                             VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="statePill"
+                          Classes.on="{Binding Prefs.KnownGoodPill.IsOn}"
+                          Classes.warn="{Binding Prefs.KnownGoodPill.IsWarn}"
+                          Classes.bad="{Binding Prefs.KnownGoodPill.IsBad}"
+                          ToolTip.Tip="{Binding Prefs.KnownGoodPill.Tip}">
+                    <TextBlock Text="{Binding Prefs.KnownGoodPill.Text}" Classes="small" />
+                  </Border>
+                </Grid>
+                <TextBlock Text="{Binding Prefs.KnownGoodStatus}" Classes="small sec" TextWrapping="Wrap" />
+                <TextBlock Classes="note"
+                           Text="Mlie's NoVersionWarning list: mods reported working on your game version despite not declaring it. Their unsupported-version warning is suppressed; everyone else's stays." />
+                <ToggleButton Classes="pill" Content="Suppress version warnings for known-good mods"
+                              IsChecked="{Binding Prefs.UseKnownGoodDatabase, Mode=TwoWay}" />
+                <!-- A BASE URL, not a file URL: the path under it is per game version
+                     (1.6/ModIdsToFix.xml), so a full URL would go stale on the next
+                     RimWorld release. -->
+                <!-- "Base URL", not "Source URL": the comment above says why the two
+                     differ, and the label is where that difference has to be visible. -->
+                <TextBlock Text="Source base URL" Classes="small sec" Margin="0,2,0,0" />
+                <TextBox Classes="inset mono" AutomationProperties.Name="Known-good source base URL"
+                         Text="{Binding Prefs.KnownGoodBaseUrl, Mode=TwoWay}"
+                         PlaceholderText="https://raw.githubusercontent.com/emipa606/NoVersionWarning/main"
+                         ToolTip.Tip="Custom BASE url — RimManager appends /&lt;game version&gt;/ModIdsToFix.xml. Leave empty for the default. Takes effect on the next sync." />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Classes="note"
+                       Text="All three sync automatically at startup and on Sync now. There is no schedule to configure." />
+          </StackPanel>
+
+          <!-- ========================= GAME LAUNCH ========================= -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="GAME LAUNCH" Classes="micro" />
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Launch command" Classes="small sec" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Classes="inset mono"
+                         AutomationProperties.Name="Game launch command" Text="{Binding Prefs.LaunchCommand, Mode=TwoWay}" />
+                <Button Grid.Column="1" Classes="quiet" Content="Reset" Margin="6,0,0,0"
+                        Command="{Binding Prefs.ResetLaunchCommand}" />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Extra arguments" Classes="small sec" />
+              <TextBox Classes="inset mono"
+                       AutomationProperties.Name="Extra launch arguments" Text="{Binding Prefs.LaunchExtraArguments, Mode=TwoWay}"
+                       PlaceholderText="-logfile … -popupwindow" />
+            </StackPanel>
+
+            <TextBlock Classes="note"
+                       Text="%args% is where the extra arguments go — it is a placeholder rather than an append, because Steam reads anything after the AppID itself instead of passing it to the game." />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- ========================== Appearance ========================== -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsAppearancePage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Appearance" Classes="page" />
+            <TextBlock Classes="small ter" Text="Applies as you change it. Nothing here needs a restart." />
+          </StackPanel>
+
+          <StackPanel Spacing="8">
+            <TextBlock Text="THEME" Classes="micro" />
+            <!--
+              THE GALLERY (T4, S-GALLERY). Each card's mini-preview renders under
+              THAT theme's own tokens: ThemePreviewHost merges Tokens.<Id>.axaml
+              into its local Resources, so every DynamicResource inside resolves
+              to the previewed theme while the app runs another — scoping, never
+              writing. The application theme changes only when a card is CHOSEN.
+
+              Follow-system is a full-width first card previewing the Drop Pods
+              PAIR (its two badges are static asset refs on purpose: the card is
+              about both, and neither is "the" current theme). The shape underneath
+              is still the log-level fix's: IsSelected displays, Choose fires.
+
+              The ACCENT PICKER IS GONE (design handoff v2): accents are
+              theme-bound, each dictionary authors its own family. Its old
+              rationale sentence survives as the section note below because the
+              contract it states is still true — per theme now.
+            -->
+            <Button Classes="themeCard" Classes.on="{Binding FollowChoice.IsSelected}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                    Command="{Binding FollowChoice.ChooseCommand}"
+                    AutomationProperties.Name="{Binding FollowChoice.Label}">
+              <Grid ColumnDefinitions="Auto,10,*">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                            VerticalAlignment="Center">
+                  <Image Width="22" Height="22"
+                         Source="avares://RimManager/Assets/marks/mark-DropPodsDark.png" />
+                  <Image Width="22" Height="22"
+                         Source="avares://RimManager/Assets/marks/mark-DropPodsLight.png" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="Follow system" Classes="small" />
+                  <TextBlock Text="The Drop Pods pair, tracking the OS's light or dark."
+                             Classes="small ter" />
+                </StackPanel>
+              </Grid>
+            </Button>
+
+            <ItemsControl ItemsSource="{Binding ThemeCards}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ThemeChoiceViewModel">
+                  <Button Classes="themeCard" Classes.on="{Binding IsSelected}"
+                          Margin="0,0,8,8"
+                          Command="{Binding ChooseCommand}"
+                          AutomationProperties.Name="{Binding Label}">
+                    <StackPanel Spacing="6" Width="138">
+                      <ctl:ThemePreviewHost ThemeId="{Binding Id}">
+                        <!-- A miniature of the real anatomy — title band with an
+                             accent chip, zebra row, selected row with its accent
+                             rail, tagged row, tinted status edges — every colour a
+                             DynamicResource so the host's scope paints it. -->
+                        <Border Width="138" Height="72" CornerRadius="4" ClipToBounds="True"
+                                BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                                BorderThickness="1"
+                                Background="{DynamicResource RmBackgroundCanvasBrush}">
+                          <DockPanel>
+                            <Border DockPanel.Dock="Top" Height="12"
+                                    Background="{DynamicResource RmBackgroundAltBrush}"
+                                    BorderBrush="{DynamicResource RmBorderSubtleBrush}"
+                                    BorderThickness="0,0,0,1">
+                              <Border Width="24" Height="5" CornerRadius="2"
+                                      Background="{DynamicResource RmAccentBrush}"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center"
+                                      Margin="0,0,5,0" />
+                            </Border>
+                            <StackPanel Margin="6,5,6,0" Spacing="3">
+                              <Border Height="6" CornerRadius="2"
+                                      Background="{DynamicResource RmBackgroundZebraBrush}" />
+                              <Grid ColumnDefinitions="2,4,*">
+                                <Border Background="{DynamicResource RmAccentBrush}" />
+                                <Border Grid.Column="2" Height="6" CornerRadius="2"
+                                        Background="{DynamicResource RmBackgroundSelectedBrush}" />
+                              </Grid>
+                              <Grid ColumnDefinitions="*,4,18">
+                                <Border Height="6" CornerRadius="2"
+                                        Background="{DynamicResource RmBackgroundSurfaceBrush}" />
+                                <Border Grid.Column="2" Height="6" CornerRadius="3"
+                                        Background="{DynamicResource RmPalette2BgBrush}" />
+                              </Grid>
+                              <Grid ColumnDefinitions="14,4,*,4,10">
+                                <Border Height="6" CornerRadius="2"
+                                        Background="{DynamicResource RmSuccessTintBrush}" />
+                                <Border Grid.Column="2" Height="6" CornerRadius="2"
+                                        Background="{DynamicResource RmBackgroundSurfaceBrush}" />
+                                <Border Grid.Column="4" Height="6" CornerRadius="2"
+                                        Background="{DynamicResource RmWarningTintBrush}" />
+                              </Grid>
+                            </StackPanel>
+                          </DockPanel>
+                        </Border>
+                      </ctl:ThemePreviewHost>
+                      <!-- S-GALLERY's row (UI audit): badge 15 · name 11/600 ·
+                           variant micro · RADIO, filled with the accent when this
+                           card is the running theme. -->
+                      <Grid ColumnDefinitions="Auto,6,*,Auto">
+                        <Image Grid.Column="0" Width="15" Height="15"
+                               VerticalAlignment="Center" Source="{Binding Badge}" />
+                        <StackPanel Grid.Column="2" Spacing="0">
+                          <TextBlock Text="{Binding DisplayName}" Classes="small"
+                                     FontWeight="SemiBold"
+                                     TextTrimming="CharacterEllipsis" MaxWidth="102"
+                                     HorizontalAlignment="Left" />
+                          <TextBlock Text="{Binding VariantLabel}" Classes="micro" />
+                        </StackPanel>
+                        <Border Grid.Column="3" Width="12" Height="12" CornerRadius="6"
+                                BorderThickness="1.5" VerticalAlignment="Center"
+                                BorderBrush="{DynamicResource RmBorderStrongBrush}">
+                          <Border Width="6" Height="6" CornerRadius="3"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Background="{DynamicResource RmAccentBrush}"
+                                  IsVisible="{Binding IsSelected}" />
+                        </Border>
+                      </Grid>
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="note"
+                       Text="Each theme carries its own accent. Accent drives selection, focus, primary buttons and the insertion line only. Status colours never change with it." />
+          </StackPanel>
+
+          <!--
+            2g merges density, the list toggles and the font into ONE section, with the
+            labelled rows sharing a left label column and the toggles spanning both. The
+            accent rationale is NOT repeated down here: it now sits beside the swatches it
+            explains, which is the only place it means anything.
+          -->
+          <StackPanel Spacing="10">
+            <TextBlock Text="DENSITY &amp; LISTS" Classes="micro" />
+
+            <!-- O5's grammar: label, then the control UNDER it, then the description
+                 under the control. These three were label-left-of-control with the
+                 description floating below the whole row, so the eye had to travel
+                 right and then back down-left to read what it had just set. -->
+            <StackPanel Spacing="4">
+              <TextBlock Text="Row density" Classes="small sec" />
+              <!-- A segmented pair, not two loose radios: the two densities are one
+                   either/or, and 2g draws them joined. -->
+              <Border Classes="segmented" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Classes="segment" GroupName="density" Content="Compact 20px"
+                               IsChecked="{Binding IsCompactDensity, Mode=TwoWay}" />
+                  <RadioButton Classes="segment" GroupName="density" Content="Comfortable 26px"
+                               IsChecked="{Binding Prefs.IsComfortableDensity, Mode=TwoWay}" />
+                </StackPanel>
+              </Border>
+              <TextBlock Classes="note"
+                         Text="Two heights and nothing between: every row binds one resource, so the switch re-lays out the whole app without losing your place." />
+            </StackPanel>
+
+            <!--
+              2g · UI scale. LAYOUT scaling, not render scaling: the window is measured
+              larger and redrawn, so text stays sharp rather than being a magnified
+              bitmap — which is what lets it be restart-free.
+
+              Separate from the display's DPI, and on top of it. TickFrequency with
+              snapping, so the readout is always a round number someone can repeat.
+            -->
+            <StackPanel Spacing="4">
+              <TextBlock Text="UI scale" Classes="small sec" />
+              <!-- The percentage sits BESIDE the slider (O5). It used to be pushed to the
+                   page's far right by a greedy star column, so the number and the thing
+                   it reports on were a hand's width apart. "restart-free" went with it:
+                   the note two lines above already says the switch needs no restart. -->
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- A DEFINITE width. A Slider left-aligned with only a MaxWidth measures
+                     to its thumb and nothing else: the track collapses to zero, so there
+                     is no groove to see and nowhere to drag along. MaxWidth caps; it
+                     never stretches. -->
+                <!-- Fluent's Slider measures 50px tall — built, like its CheckBox and
+                     ToggleSwitch, for 32px rows. Its TEMPLATE will not go below 40: the
+                     track sits well down inside it and the thumb hangs below that, so
+                     forcing 22 clipped the bottom third of the thumb clean off. 40 is
+                     the smallest height that clips nothing, and 10px back from the
+                     default — which is as much as this control can give. -->
+                <Slider Minimum="80" Maximum="150"
+                        TickFrequency="5" IsSnapToTickEnabled="True"
+                        Width="240" MinWidth="240" Height="40" MinHeight="0" Padding="0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="UI scale"
+                        Value="{Binding Prefs.UiScalePercent, Mode=TwoWay}" />
+                <TextBlock Text="{Binding Prefs.UiScaleText}" Classes="mono"
+                           VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="38" />
+              </StackPanel>
+              <TextBlock Classes="note"
+                         Text="Layout scaling, not a magnified bitmap — text stays sharp, and it applies as you drag." />
+            </StackPanel>
+
+            <ToggleButton Classes="pill" Content="Tag colour pills in rows"
+                          IsChecked="{Binding Prefs.ShowTagStripes, Mode=TwoWay}" />
+            <ToggleButton Classes="pill" Content="Zebra striping"
+                          IsChecked="{Binding Prefs.ZebraStriping, Mode=TwoWay}" />
+            <!-- The stored preference keeps its old name (ShowTagStripes) so nothing
+                 migrates; the label says what it now governs — the row tag pills. -->
+            <ToggleButton Classes="pill" Content="Show mod preview images in the info pane"
+                          IsChecked="{Binding Prefs.ShowPreviewImages, Mode=TwoWay}" />
+
+            <!-- Font was the double offender: label to the LEFT of the ComboBox and the
+                 description to its RIGHT, so one setting spanned the page in three
+                 directions. -->
+            <StackPanel Spacing="4">
+              <TextBlock Text="Font" Classes="small sec" />
+              <ComboBox MinWidth="190" HorizontalAlignment="Left"
+                        AutomationProperties.Name="Interface font"
+                        ItemsSource="{Binding FontChoices}"
+                        SelectedIndex="{Binding Prefs.FontIndex, Mode=TwoWay}" />
+              <TextBlock Classes="note"
+                         Text="The mono column font follows the system monospace and is not changed here." />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- ======================= Tags & metadata ======================== -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsTagsPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Tags &amp; metadata" Classes="page" />
+            <TextBlock Classes="small ter"
+                       Text="Tags are shared by every modlist, and saved as you edit." />
+          </StackPanel>
+
+          <StackPanel Spacing="8">
+            <!-- The "TAGS" micro label is gone (O5): the page is already titled
+                 "Tags & metadata" and the table beneath is headed NAME, so a third
+                 statement of the noun sat left of its own count saying nothing. -->
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding TagHeader}" Classes="small ter"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="quiet" Content="+ New tag"
+                      Command="{Binding NewTagCommand}" />
+              <Button Grid.Column="3" Classes="quiet" Content="Delete" Margin="6,0,0,0"
+                      Command="{Binding DeleteTagCommand}"
+                      IsEnabled="{Binding HasTagSelection}" />
+            </Grid>
+
+            <Border Classes="pane">
+              <DockPanel>
+                <!-- Headings CENTRED, and the ad-hoc 10px edge margins gone: the header
+                     Border already carries RmPanePadding, and the rows below now sit on
+                     the same inset via the shared wrapper — so the columns line up
+                     instead of the headings sitting 8px left of their own numbers. -->
+                <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+                  <Grid ColumnDefinitions="*,64,56">
+                    <TextBlock Grid.Column="0" Text="NAME" Classes="micro"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="MODS" Classes="micro" TextAlignment="Right"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="RULES" Classes="micro" TextAlignment="Right"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+
+                <ListBox Classes="dockRows" MaxHeight="180" AutomationProperties.Name="Tags"
+                         ItemsSource="{Binding TagRows}"
+                         SelectedItem="{Binding SelectedTag, Mode=TwoWay}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TagRowViewModel">
+                      <!-- The SAME wrapper every other dockRows table uses (Warnings,
+                           Updates, History, ImportCollection): it is what gives the row
+                           its 24px height and puts it on the header's own 8px inset.
+                           Without it the row auto-sized to ~15px against a 22px header
+                           and sat 8px right of the headings above it. -->
+                      <Border Height="{DynamicResource RmDockTableRowHeight}"
+                              Padding="{DynamicResource RmPanePadding}">
+                      <Grid ColumnDefinitions="*,64,56">
+                        <!-- Grid, not a horizontal StackPanel: infinite width there means
+                             a long tag name never ellipsizes and paints over the counts. -->
+                        <Grid Grid.Column="0" ColumnDefinitions="Auto,8,*"
+                              ClipToBounds="True">
+                          <!-- 12px chip, hue by bound class so it flips with the theme. -->
+                          <Border Grid.Column="0" Width="12" Height="12" CornerRadius="3"
+                                  VerticalAlignment="Center"
+                                  Classes="paletted"
+                                  Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                  Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                  Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                          <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="pri"
+                                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                     ToolTip.Tip="{Binding Name}" />
+                        </Grid>
+                        <TextBlock Grid.Column="1" Text="{Binding ModCount}" Classes="small mono ter"
+                                   TextAlignment="Right" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding Rules}" Classes="small mono ter"
+                                   TextAlignment="Right" VerticalAlignment="Center" />
+                      </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- Editor and rules, side by side under the selection (2g). -->
+          <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding HasTagSelection}">
+            <Border Grid.Column="0" Classes="card" Padding="12,10">
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding EditTitle}" Classes="micro" />
+
+                <Grid ColumnDefinitions="70,*" RowDefinitions="Auto">
+                  <TextBlock Grid.Column="0" Text="Name" Classes="small sec" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Classes="inset"
+                           AutomationProperties.Name="Tag name" Text="{Binding SelectedTag.Name, Mode=TwoWay}" />
+                </Grid>
+
+                <Grid ColumnDefinitions="70,*">
+                  <TextBlock Grid.Column="0" Text="Colour" Classes="small sec" VerticalAlignment="Top"
+                             Margin="0,5,0,0" />
+                  <StackPanel Grid.Column="1" Spacing="5">
+                    <!-- Bound items, not six literal buttons: a literal
+                         CommandParameter="0" is a STRING, which a command taking an int
+                         silently refuses — every swatch was dead and only the binding log
+                         said so. Here the parameter is a real int. -->
+                    <ItemsControl ItemsSource="{Binding TagPalette}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="6" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TagPaletteChoiceViewModel">
+                          <Button Classes="tagSwatch"
+                                  Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                  Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                  Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}"
+                                  Classes.selected="{Binding IsSelected}"
+                                  ToolTip.Tip="{Binding Name}"
+                                  AutomationProperties.Name="{Binding Name}"
+                                  Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).ChooseTagColourCommand}"
+                                  CommandParameter="{Binding Index}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="note"
+                               Text="Stored as a palette index, never a hex — which is what lets it flip with the theme." />
+                  </StackPanel>
+                </Grid>
+
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Classes="card" Padding="12,10">
+              <StackPanel Spacing="8">
+                <TextBlock Text="AUTO-ASSIGN RULES" Classes="micro" />
+                <TextBlock Classes="note"
+                           Text="Apply this tag when a NEWLY SCANNED mod matches. Never retroactive — a rule added now cannot re-tag a list you have already curated." />
+
+                <ItemsControl ItemsSource="{Binding Conditions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TagConditionRowViewModel">
+                      <StackPanel Spacing="3" Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                          <ComboBox Grid.Column="0" MinWidth="130" AutomationProperties.Name="Condition kind"
+                                    ItemsSource="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).ConditionKinds}"
+                                    SelectedIndex="{Binding KindIndex, Mode=TwoWay}" />
+                          <TextBox Grid.Column="1" Classes="inset" Margin="6,0,0,0"
+                                   AutomationProperties.Name="Condition value"
+                                   Text="{Binding Value, Mode=TwoWay}" />
+                          <!-- A real geometry, not ✕ (non-negotiable #12, T2). -->
+                          <Button Grid.Column="2" Classes="quiet" Margin="6,0,0,0"
+                                  ToolTip.Tip="Remove this condition"
+                                  AutomationProperties.Name="Remove this condition"
+                                  Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).RemoveConditionCommand}"
+                                  CommandParameter="{Binding}">
+                            <PathIcon Data="{StaticResource RmIconClose}" Width="8" Height="8" />
+                          </Button>
+                        </Grid>
+                        <!-- The rule as it will read. The quotes are the point: they make
+                             a trailing space visible, which is otherwise a rule that
+                             never fires with nothing on screen to explain why. -->
+                        <TextBlock Text="{Binding Preview}" Classes="small mono ter" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Classes="quiet" Content="+ add condition" HorizontalAlignment="Left"
+                        Command="{Binding AddConditionCommand}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <StackPanel Spacing="10">
+            <TextBlock Text="METADATA STORAGE" Classes="micro" />
+            <!-- The keep-metadata TOGGLE is GONE (UI audit): retention is
+                 unconditional by design and the pref was read by nothing, so OFF
+                 lied. The fact it stated survives as a plain sentence — it is true
+                 and worth saying; it was never a choice. -->
+            <TextBlock Classes="small sec"
+                       Text="Tags, notes and favourites are kept when a mod is uninstalled, and restored if it comes back." />
+            <!-- "Share tags across all instances" is GONE (T6): instances are gone,
+                 so there is nothing to share across — the toggle changed a stored
+                 value nothing read. -->
+
+            <TextBlock Text="{Binding MetadataStorageLine}" Classes="small mono ter"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- =========================== Modlists ========================== -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsModlistsPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Modlists" Classes="page" />
+            <!-- Opens with what a modlist IS: the word means nothing to someone who has
+                 only ever had one, and the sentence promises it never touches a mod. -->
+            <TextBlock Classes="note" Text="{Binding WhatIsAModlist}" />
+          </StackPanel>
+
+          <Border Classes="pane">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+                <Grid ColumnDefinitions="*,64,74,84,96">
+                  <TextBlock Grid.Column="0" Text="MODLIST" Classes="micro"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="MODS" Classes="micro" TextAlignment="Right"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="SETTINGS" Classes="micro" TextAlignment="Right"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="SNAPSHOTS" Classes="micro" TextAlignment="Right"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="4" Text="LAST USED" Classes="micro" TextAlignment="Right"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+
+              <ListBox Classes="dockRows" MaxHeight="170" AutomationProperties.Name="Modlists"
+                       ItemsSource="{Binding ModlistRows}"
+                       SelectedItem="{Binding SelectedModlistRow, Mode=TwoWay}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ModlistRowViewModel">
+                    <!-- The shared wrapper, as on the Tags table. It matters more here:
+                         these rows carry statePill children ("open" / "default"), whose
+                         padding made the one or two rows that show them stand ~4px
+                         taller, so the list visibly stepped. A fixed height ends that. -->
+                    <Border Height="{DynamicResource RmDockTableRowHeight}"
+                            Padding="{DynamicResource RmPanePadding}">
+                    <Grid ColumnDefinitions="*,64,74,84,96">
+                      <!-- Grid, not a horizontal StackPanel: infinite width there means a
+                           long list name never ellipsizes and paints over the columns
+                           beside it, and pushes the pills off the row. -->
+                      <!-- 6px between the two pills, not 4: a list that is both open and
+                           default shows them side by side, and at the old size they met. -->
+                      <Grid Grid.Column="0" ColumnDefinitions="Auto,8,*,6,Auto,6,Auto"
+                            ClipToBounds="True">
+                        <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4"
+                                VerticalAlignment="Center"
+                                Classes="paletted"
+                                Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Name}" Classes="pri"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Name}" />
+                        <!-- Says which one is open, rather than leaving you to remember. -->
+                        <Border Grid.Column="4" Classes="statePill on compact" VerticalAlignment="Center"
+                                IsVisible="{Binding IsCurrent}">
+                          <TextBlock Text="open" />
+                        </Border>
+                        <!-- Marked here, so "why can I not delete this" is answered before
+                             the disabled button is reached for. -->
+                        <Border Grid.Column="6" Classes="statePill compact" VerticalAlignment="Center"
+                                IsVisible="{Binding IsDefault}"
+                                ToolTip.Tip="The default list cannot be deleted">
+                          <TextBlock Text="default" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Column="1" Text="{Binding Mods}" Classes="small mono ter"
+                                 TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding Settings}" Classes="small mono ter"
+                                 TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="3" Text="{Binding Snapshots}" Classes="small mono ter"
+                                 TextAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Text="{Binding LastUsed}" Classes="small ter"
+                                 TextAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Border>
+
+          <Border Classes="card" Padding="12,10" IsVisible="{Binding HasModlistSelection}">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{Binding SelectedModlistTitle}" Classes="micro" />
+
+              <Grid ColumnDefinitions="70,*,Auto">
+                <TextBlock Grid.Column="0" Text="Name" Classes="small sec" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Classes="inset"
+                         AutomationProperties.Name="Modlist name"
+                         Text="{Binding SelectedModlistRow.Name, Mode=TwoWay}" />
+                <Button Grid.Column="2" Classes="quiet" Content="Rename" Margin="6,0,0,0"
+                        Command="{Binding RenameModlistCommand}" />
+              </Grid>
+
+              <Grid ColumnDefinitions="70,*">
+                <TextBlock Grid.Column="0" Text="Colour dot" Classes="small sec"
+                           VerticalAlignment="Center" />
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding ModlistPalette}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TagPaletteChoiceViewModel">
+                      <Button Classes="tagSwatch"
+                              Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                              Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                              Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}"
+                              Classes.selected="{Binding IsSelected}"
+                              ToolTip.Tip="{Binding Name}"
+                              AutomationProperties.Name="{Binding Name}"
+                              Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).ChooseModlistColourCommand}"
+                              CommandParameter="{Binding Index}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Grid>
+
+              <Border Classes="divider" Height="1" />
+
+              <!-- Mod settings. Off by default, and the OFF text says what turning it on
+                   will DO, because it starts writing into the game config folder. -->
+              <StackPanel Spacing="4">
+                <ToggleButton Classes="pill" Content="Keep this list&apos;s own mod settings"
+                              IsChecked="{Binding CapturesModSettings, Mode=TwoWay}" />
+                <TextBlock Classes="note" Text="{Binding ModSettingsSummary}" />
+              </StackPanel>
+
+              <Border Classes="divider" Height="1" />
+
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="quiet" Content="+ New list"
+                        Command="{Binding NewModlistCommand}"
+                        ToolTip.Tip="An empty list — every installed mod starts inactive" />
+                <Button Classes="quiet" Content="Duplicate"
+                        Command="{Binding DuplicateModlistCommand}"
+                        ToolTip.Tip="Same mods, same order, same separators. The copy shares nothing." />
+                <Button Classes="quiet" Content="Make default"
+                        Command="{Binding MakeDefaultModlistCommand}"
+                        IsEnabled="{Binding CanMakeDefault}"
+                        ToolTip.Tip="The default opens when nothing else has been used, and cannot be deleted" />
+
+                <!-- Confirms through the shared dialog (2i-6), which names what is lost
+                     and what is not. The ellipsis is the promise that it will ask. -->
+                <Button Classes="danger" Content="Delete…" Margin="10,0,0,0"
+                        Command="{Binding DeleteModlistCommand}"
+                        IsEnabled="{Binding CanDeleteModlist}" />
+              </StackPanel>
+
+              <!-- The reason, beside the disabled button. A greyed control with no
+                   explanation is one the user assumes is broken. -->
+              <TextBlock Classes="note" IsVisible="{Binding !CanDeleteModlist}"
+                         Text="{Binding WhyDeleteRefused}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- ============================ Advanced ========================= -->
+        <StackPanel Spacing="16" IsVisible="{Binding IsAdvancedPage}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Advanced" Classes="page" />
+            <TextBlock Classes="small ter"
+                       Text="Applies immediately. Nothing here writes to your game folder." />
+          </StackPanel>
+
+          <!-- Section order follows 2g: performance, then safety, then diagnostics. -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="PERFORMANCE" Classes="micro" />
+            <StackPanel Spacing="4">
+              <TextBlock Text="Scan cache" Classes="small sec" />
+              <TextBlock Text="{Binding Prefs.ScanCacheSummary}"
+                         Classes="small mono ter" TextWrapping="Wrap" />
+              <Button Classes="quiet" Content="Rebuild scan cache" HorizontalAlignment="Left"
+                      Margin="0,2,0,0" Command="{Binding Prefs.RebuildScanCache}" />
+              <TextBlock Classes="note"
+                         Text="The parsed About.xml cache is a disposable derived cache — JSON is the source of truth, so deleting it can lose nothing. It only makes the next scan slower." />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <TextBlock Text="DATA &amp; SAFETY" Classes="micro" />
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Keep snapshots" Classes="small sec" />
+              <ComboBox MinWidth="120" HorizontalAlignment="Left"
+                        AutomationProperties.Name="Snapshots to keep"
+                        ItemsSource="{Binding SnapshotKeepChoices}"
+                        SelectedIndex="{Binding SnapshotKeepIndex, Mode=TwoWay}" />
+              <TextBlock Classes="note" Text="Named and pinned snapshots are never pruned." />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="ModsConfig.xml backups" Classes="small sec" />
+              <Button Classes="quiet" Content="Open backup folder" HorizontalAlignment="Left"
+                      Command="{Binding Prefs.OpenBackupFolder}" />
+              <!-- O5 · they used to land beside ModsConfig.xml, inside RimWorld's own
+                   config folder. The note has to move with them, or it describes where
+                   they were. -->
+              <TextBlock Classes="note"
+                         Text="One timestamped copy per Apply, in RimManager's own folder. The newest 20 are kept." />
+            </StackPanel>
+
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Confirm when Apply would do something unexpected"
+                            IsChecked="{Binding Prefs.ConfirmBeforeApply, Mode=TwoWay}" />
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="The inline bar, not a dialog — and only when there is something to say: RimWorld changed the list behind you, or you have turned the blocking-warning refusal off. A routine apply just writes. Turning this off writes in every case, through the same one path to the game folder, not a second one." />
+            </StackPanel>
+            <StackPanel Spacing="2">
+              <ToggleButton Classes="pill" Content="Refuse to Apply while blocking warnings exist"
+                            IsChecked="{Binding Prefs.RefuseApplyWithBlockingWarnings, Mode=TwoWay}" />
+              <TextBlock Classes="note" Margin="39,0,0,0"
+                         Text="On by default: a missing dependency means the game fails to load, and finding that out from RimWorld's own error screen is far worse than being stopped here." />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <TextBlock Text="DIAGNOSTICS" Classes="micro" />
+
+            <Grid ColumnDefinitions="137,*">
+              <TextBlock Grid.Column="0" Text="Log level" Classes="small sec" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Classes="segmented" HorizontalAlignment="Left">
+                <ItemsControl ItemsSource="{Binding LogLevelChoices}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LogLevelChoiceViewModel">
+                      <!-- Buttons, not radios, and not for looks: a radio group checks
+                           segments as arrow-key focus moves through it, and this is the
+                           one segmented control whose misfire is INVISIBLE — a floor
+                           moved to Error silences the log that would report the move.
+                           A Button acts on click/Space/Enter and nothing else; the on
+                           class mirrors the pref (N4g's chip shape), no TwoWay
+                           IsChecked, no group manager. -->
+                      <Button Classes="segment" Classes.on="{Binding IsSelected}"
+                              Content="{Binding Label}"
+                              Command="{Binding ChooseCommand}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
+            </Grid>
+            <TextBlock Classes="note" Text="{Binding Prefs.LogLevelNote}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="quiet" Content="Open log folder"
+                      Command="{Binding Prefs.OpenLogFolder}" />
+              <Button Classes="quiet" Content="Copy diagnostics bundle"
+                      Command="{Binding Prefs.CopyDiagnostics}"
+                      ToolTip.Tip="The whole log plus a one-line summary — the text a bug report needs." />
+              <Button Classes="quiet" Content="Reset window layout"
+                      Command="{Binding Prefs.ResetLayout}" />
+            </StackPanel>
+          </StackPanel>
+
+
+          <!-- The danger zone. Both actions confirm through the shared
+               destructive-confirm modal (2i-6), parented to THIS window while
+               Settings is open — the fronting swap lives in ShowSettings. -->
+          <!-- Left-aligned and capped rather than stretched to the window's edge: the
+               card had no width of its own, so on a wide Settings window its two
+               buttons ended up a long way from the sentences they belonged to. -->
+          <Border Classes="card dangerZone" Padding="12,10"
+                  HorizontalAlignment="Left" MaxWidth="520">
+            <StackPanel Spacing="12">
+              <TextBlock Text="DANGER ZONE" Classes="micro bad" />
+
+              <!-- One block per action, each stating its OWN consequence with its button
+                   UNDER it (O5). A shared paragraph above two buttons leaves the reader
+                   to work out which sentence applies to which. -->
+              <StackPanel Spacing="4">
+                <!-- Scope stated truthfully (UI audit): the command deletes the OPEN
+                     modlist's unprotected snapshots — the old heading claimed every
+                     modlist, and the old detail counted whichever row happened to be
+                     selected on the Modlists page. Three scopes on one button. -->
+                <TextBlock Text="Delete the open modlist's snapshots" Classes="pri" />
+                <TextBlock Text="Named and pinned snapshots are kept · cannot be undone"
+                           Classes="small ter" TextWrapping="Wrap" />
+                <Button Classes="danger" Content="Delete…" HorizontalAlignment="Left"
+                        Margin="0,2,0,0"
+                        Command="{Binding Prefs.DeleteAllSnapshots}" />
+              </StackPanel>
+
+              <StackPanel Spacing="4">
+                <TextBlock Text="Reset RimManager" Classes="pri" />
+                <TextBlock Classes="small ter" TextWrapping="Wrap"
+                           Text="Removes all modlists, tags, notes and settings. Your mods, ModsConfig.xml, its backups and the log files are untouched." />
+                <Button Classes="danger" Content="Reset…" HorizontalAlignment="Left"
+                        Margin="0,2,0,0"
+                        Command="{Binding Prefs.ResetRimManager}" />
+              </StackPanel>
+
+              <TextBlock Classes="note"
+                         Text="Both confirm first, in a dialog that names what is lost and what is not. The primary button is the verb, never OK." />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+      </Panel>
+    </ScrollViewer>
+    </DockPanel>
+  </DockPanel>
+</Window>

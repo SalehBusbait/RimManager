@@ -1,0 +1,173 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.ModConflictsWindow"
+        x:DataType="vm:ModConflictsViewModel"
+        Title="Mod conflicts"
+        Width="640" Height="480"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    N6b · the per-mod conflict window: what this mod wins and loses against the mods
+    involved, and the Harmony targets it shares — §0f gives the two relationships
+    different sections and different sentences, never one wins/loses table.
+
+    NON-modal, like the XML diff it opens (#4: only three surfaces are modal, and
+    this is a reference you keep open while reordering behind it). Read-only: the
+    remedy for a conflict is reordering, and the lists are where reordering lives.
+
+    A snapshot at open, deliberately. The lists repaint live because they are on
+    screen; a floating window quietly recomputing while you drag behind it would be
+    a second moving surface to track. Reopen for a fresh reading.
+  -->
+  <Window.Resources>
+    <!-- Declared BEFORE the content that StaticResource-references it: a resource
+         defined later in document order resolves to nothing at parse time.
+
+         One row template for all three sections: kind · key · counterpart · Diff.
+         A Grid, never a horizontal StackPanel: the KEY cell must trim
+         (LayoutTrapTests). -->
+    <DataTemplate x:Key="ContestRowTemplate" x:DataType="vm:ContestRow">
+      <Grid ColumnDefinitions="76,8,*,8,Auto,8,Auto" Margin="0,1">
+        <TextBlock Grid.Column="0" Text="{Binding KindLabel}" Classes="small ter"
+                   VerticalAlignment="Center" />
+        <!-- Key and counterpart stack in the flexible cell so a long defName trims
+             before it pushes the buttons out of the window. -->
+        <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="0">
+          <TextBlock Text="{Binding Key}" Classes="mono sec"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Key}" />
+          <TextBlock Text="{Binding Counterpart}" Classes="small ter"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Counterpart}" />
+        </StackPanel>
+        <!-- The tab's "Make another win", living here since the tab went (N6c). Lost
+             rows only: a won row has nothing to win, Harmony has no winner (§0f). -->
+        <Button Grid.Column="4" Classes="quiet" Content="Win this" VerticalAlignment="Center"
+                IsVisible="{Binding CanWin}"
+                Command="{Binding $parent[Window].((vm:ModConflictsViewModel)DataContext).WinThisCommand}"
+                CommandParameter="{Binding}"
+                ToolTip.Tip="Move this mod below the current winner so it loads last and takes effect — one undoable move" />
+        <Button Grid.Column="6" Classes="quiet" Content="Diff" VerticalAlignment="Center"
+                IsVisible="{Binding CanDiff}"
+                Command="{Binding $parent[Window].((vm:ModConflictsViewModel)DataContext).OpenDiffCommand}"
+                CommandParameter="{Binding}"
+                ToolTip.Tip="Compare the two versions of the contested element" />
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top" Height="40" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,8,Auto,8,*">
+        <TextBlock Grid.Column="0" Text="{Binding Detail.Title}" Classes="title"
+                   VerticalAlignment="Center" />
+        <!-- The inline badge (S-CONFLICTS): the same bolt + ± grammar the row wears,
+             so the window shows the mark it was opened from. -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                    VerticalAlignment="Center">
+          <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                    Foreground="{DynamicResource RmWarningBrush}"
+                    IsVisible="{Binding Detail.HasOverrideContest}" />
+          <PathIcon Data="{StaticResource RmIconConflict}" Width="10" Height="10"
+                    Foreground="{DynamicResource RmHarmonyBrush}"
+                    IsVisible="{Binding Detail.HasHarmony}" />
+          <PathIcon Data="{StaticResource RmIconOverwriting}" Width="7" Height="7"
+                    Margin="2,0,0,0"
+                    Foreground="{DynamicResource RmSuccessBrush}"
+                    IsVisible="{Binding Detail.HasWon}" />
+          <PathIcon Data="{StaticResource RmIconOverwritten}" Width="7" Height="7"
+                    Margin="2,0,0,0"
+                    Foreground="{DynamicResource RmDangerBrush}"
+                    IsVisible="{Binding Detail.HasLost}" />
+        </StackPanel>
+        <TextBlock Grid.Column="4" Text="{Binding Detail.Subtitle}" Classes="small ter"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Height="{DynamicResource RmDockFooterHeight}" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <!-- The hidden-count rule (2c): a filter that hides says how much. -->
+        <TextBlock Grid.Column="0" Text="{Binding Detail.HarmlessNote}" Classes="small ter"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1" Classes="small ter" VerticalAlignment="Center"
+                   Text="A snapshot from when this window opened — reorder in the lists, then reopen" />
+      </Grid>
+    </Border>
+
+    <!-- The legend, embedded above the footer (T6, S-LEGEND: "also embedded in
+         S-CONFLICTS") — the same vocabulary the ⚡ header flyout teaches, condensed
+         to one line, so the section tones above never have to be guessed at. -->
+    <Border DockPanel.Dock="Bottom" Padding="12,4"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="Auto,12,Auto,12,Auto,*">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
+          <Border Width="7" Height="7" CornerRadius="1" VerticalAlignment="Center"
+                  Background="{DynamicResource RmDangerBrush}" />
+          <TextBlock Classes="small ter" Text="overwritten — theirs is used"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5">
+          <Border Width="7" Height="7" CornerRadius="1" VerticalAlignment="Center"
+                  Background="{DynamicResource RmSuccessBrush}" />
+          <TextBlock Classes="small ter" Text="overwrites — this mod's is used"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="5">
+          <Border Width="7" Height="7" CornerRadius="1" VerticalAlignment="Center"
+                  Background="{DynamicResource RmHarmonyBrush}" />
+          <TextBlock Classes="small ter" Text="Harmony — linked, not ranked"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <!-- Gutters as Margin, never ScrollViewer.Padding — Padding is SUBTRACTED from
+           the scrollable extent (LayoutTrapTests). -->
+      <StackPanel Margin="12" Spacing="14">
+
+        <!-- 3e: an empty window says why it is empty, and the reason differs while
+             the scan is still running. -->
+        <TextBlock Text="{Binding Detail.EmptyText}" Classes="small sec" TextWrapping="Wrap"
+                   IsVisible="{Binding Detail.IsEmpty}" />
+
+        <!-- T6, S-CONFLICTS: fixed order OVERWRITTEN → OVERWRITES → HARMONY, each
+             heading in its section's tone — the same three colours the row paints
+             use, so the window and the lists speak one grammar. -->
+        <StackPanel Spacing="4" IsVisible="{Binding Detail.HasLost}">
+          <TextBlock Text="{Binding Detail.LostHeading}" Classes="micro"
+                     Foreground="{DynamicResource RmDangerBrush}" />
+          <TextBlock Classes="small ter"
+                     Text="Their version loads after this mod's — last loaded wins, and theirs is what the game uses." />
+          <ItemsControl ItemsSource="{Binding Detail.Lost}"
+                        ItemTemplate="{StaticResource ContestRowTemplate}" />
+        </StackPanel>
+
+        <StackPanel Spacing="4" IsVisible="{Binding Detail.HasWon}">
+          <TextBlock Text="{Binding Detail.WonHeading}" Classes="micro"
+                     Foreground="{DynamicResource RmSuccessBrush}" />
+          <TextBlock Classes="small ter"
+                     Text="This mod loads last — its version is what the game uses." />
+          <ItemsControl ItemsSource="{Binding Detail.Won}"
+                        ItemTemplate="{StaticResource ContestRowTemplate}" />
+        </StackPanel>
+
+        <StackPanel Spacing="4" IsVisible="{Binding Detail.HasHarmony}">
+          <TextBlock Text="{Binding Detail.HarmonyHeading}" Classes="micro"
+                     Foreground="{DynamicResource RmHarmonyBrush}" />
+          <TextBlock Classes="small ter"
+                     Text="Every patch runs — order decides the outcome, and there is no winner to pick." />
+          <ItemsControl ItemsSource="{Binding Detail.Harmony}"
+                        ItemTemplate="{StaticResource ContestRowTemplate}" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

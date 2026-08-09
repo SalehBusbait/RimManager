@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.ShortcutSheetWindow"
+        x:DataType="vm:ShortcutSheetViewModel"
+        Title="Keyboard shortcuts"
+        Width="710" Height="500" MinWidth="560" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    3d · the shortcut sheet, GENERATED from ShortcutTable. Two columns, because a single
+    one made a 28-row sheet taller than most screens. Not modal: it is a reference you
+    keep open while trying the keys it lists.
+  -->
+  <DockPanel Margin="18,14">
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <TextBlock Grid.Column="0" Text="Keyboard shortcuts" Classes="title"
+                 VerticalAlignment="Center" />
+      <!-- Matches on the LABEL or the GESTURE: the two reasons to open this sheet are
+           "what is the key for X" and "what did the key I just pressed do". -->
+      <TextBox Grid.Column="1" Classes="inset" Width="220"
+               AutomationProperties.Name="Filter shortcuts" Text="{Binding Filter, Mode=TwoWay}"
+               PlaceholderText="filter by action or key" />
+    </Grid>
+
+    <Border DockPanel.Dock="Bottom" Height="26" Margin="0,10,0,0"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <TextBlock Text="{Binding ModifierNote}" Classes="small ter" VerticalAlignment="Center" />
+    </Border>
+
+    <TextBlock DockPanel.Dock="Bottom" Classes="small ter" Margin="0,10,0,0"
+               IsVisible="{Binding IsEmpty}"
+               Text="No shortcut matches that." />
+
+    <ScrollViewer>
+      <Grid ColumnDefinitions="*,24,*">
+        <ItemsControl Grid.Column="0" ItemsSource="{Binding LeftColumn}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ShortcutSheetBlock">
+              <StackPanel Spacing="2" Margin="0,0,0,16">
+                <TextBlock Text="{Binding Title}" Classes="micro" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Rows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ShortcutSheetRow">
+                      <Grid ColumnDefinitions="*,Auto" Height="22">
+                        <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="sec"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <!-- A keycap, not a count pill (T2, S-KEYS): the one surface
+                             whose subject is keys renders them as keys. -->
+                        <Border Grid.Column="1" Classes="keycap" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Gesture}" Classes="mono sec" VerticalAlignment="Center" />
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ItemsControl Grid.Column="2" ItemsSource="{Binding RightColumn}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ShortcutSheetBlock">
+              <StackPanel Spacing="2" Margin="0,0,0,16">
+                <TextBlock Text="{Binding Title}" Classes="micro" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Rows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ShortcutSheetRow">
+                      <Grid ColumnDefinitions="*,Auto" Height="22">
+                        <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="sec"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <!-- A keycap, not a count pill (T2, S-KEYS): the one surface
+                             whose subject is keys renders them as keys. -->
+                        <Border Grid.Column="1" Classes="keycap" Margin="12,0,0,0">
+                          <TextBlock Text="{Binding Gesture}" Classes="mono sec" VerticalAlignment="Center" />
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

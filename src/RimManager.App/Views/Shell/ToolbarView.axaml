@@ -1,0 +1,658 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             xmlns:dm="using:RimManager.Core.Domain"
+             x:Class="RimManager.App.Views.Shell.ToolbarView"
+             x:DataType="vm:MainWindowViewModel">
+  <!--
+    Toolbar, 36px (1a), with the four dropdowns of 3f. SIX controls, down from
+    fourteen: a control earns space here only if it is used more than once per
+    session and is not a one-way door. Everything cut keeps a menu home, a shortcut
+    and a ⌘K entry — nothing was removed from the product.
+
+    Gone from here on purpose:
+      · the game-version dropdown  → read-only text in the menu bar (it reports the
+        install; it never changed it)
+      · Activate / Deactivate      → each pane's footer, next to the selection
+      · the separate filter bar    → merged into the search field and chips
+      · Updates / Conflicts        → dock tabs, where the badge IS the button
+
+    The dropdowns are MenuFlyouts, not panels of Fluent CheckBoxes. 3f shows 24px
+    menu rows with a ✓ in a leading gutter; a stack of full-size checkbox controls
+    reads as a settings page instead of a menu, and is much heavier for something
+    opened dozens of times a session.
+  -->
+  <Border Height="{DynamicResource RmToolbarHeight}" Padding="8,0"
+          Background="{DynamicResource RmBackgroundAltBrush}"
+          BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+    <Grid x:Name="ToolbarGrid" VerticalAlignment="Center">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" /><!-- 0 instance   -->
+        <ColumnDefinition Width="Auto" /><!-- 1 divider    -->
+        <ColumnDefinition Width="Auto" /><!-- 2 Sort ▾     -->
+        <ColumnDefinition Width="Auto" /><!-- 3 Refresh    -->
+        <ColumnDefinition Width="Auto" /><!-- 4 undo/redo  -->
+        <ColumnDefinition Width="Auto" /><!-- 5 Apply ▾    -->
+        <ColumnDefinition Width="Auto" /><!-- 6 divider    -->
+        <!-- Search is "flex, max-width 420px" (1a). Capping the COLUMN is what keeps
+             the filter chips next to the field instead of stranded at the far right,
+             which is what a plain * column does once the window is wide. -->
+        <ColumnDefinition Width="*" MaxWidth="420" /><!-- 7 search -->
+        <ColumnDefinition Width="Auto" /><!-- 8 chips      -->
+        <ColumnDefinition Width="Auto" /><!-- 9 divider    -->
+        <ColumnDefinition Width="Auto" /><!-- 10 ⌘K / ⋯    -->
+        <!-- No trailing * spacer. 1a lists the nine controls as one left-to-right
+             run: the SEARCH field is the only flexible one, and once it hits its
+             420px cap the leftover width simply stays empty at the right edge. A
+             spacer here would strand ⌘K Actions against the window edge on a wide
+             display, metres away from the chips it sits beside in the design. -->
+        <!-- 11 · empty at every width except below 900 (2k), where Apply moves here so
+             it sits at the right edge as the design draws it. Search's 420px cap is
+             lifted at the same moment, so the slack goes into the field rather than
+             leaving Apply stranded in the middle of the bar. -->
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <!--
+        2k · below 900px the instance selector gives its place to the segmented list
+        switch. One list is on screen at a time down here, so the control that says
+        WHICH earns the first slot; the instance switcher moves into the ⋯ overflow,
+        where it is still one click away.
+      -->
+      <Border Grid.Column="0" x:Name="SegmentedSwitch" IsVisible="False" Classes="segmented"
+              Height="{DynamicResource RmToolbarControlHeight}" VerticalAlignment="Center"
+              Background="{DynamicResource RmBackgroundSurfaceBrush}">
+        <StackPanel Orientation="Horizontal">
+          <!-- Both counts stay readable on the unselected half: the whole point of the
+               control is to say what is on the other side of it. -->
+          <RadioButton Classes="segment" GroupName="NarrowPane"
+                       IsChecked="{Binding IsActiveSegment, Mode=TwoWay}"
+                       Content="{Binding SegmentActiveLabel}"
+                       AutomationProperties.Name="Show the active load order" />
+          <RadioButton Classes="segment" GroupName="NarrowPane"
+                       IsChecked="{Binding IsInactiveSegment, Mode=TwoWay}"
+                       Content="{Binding SegmentInactiveLabel}"
+                       AutomationProperties.Name="Show the inactive mods" />
+        </StackPanel>
+      </Border>
+
+      <!-- 1 · MODLIST selector. This was the instance selector; instances are gone
+           (the modlist migration) and the modlist is now the thing the user switches.
+           The control keeps its slot, its shape and its x:Name — the leftmost position
+           is where "which thing am I working on" has always lived, and only the answer
+           to that question changed.
+
+           The swatch is the modlist's OWN palette colour (S-SELECTOR) — path
+           health moved to the strips and Settings, where a verdict can carry a
+           sentence. -->
+      <Button Grid.Column="0" x:Name="InstanceSelector"
+              Classes="toolbar" Padding="7,0" ToolTip.Tip="Switch modlist"
+              AutomationProperties.Name="Switch modlist">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <!-- The modlist's OWN palette colour (v2 S-SELECTOR) — an identity you can
+               learn, replacing the 6px path-health dot: colour-only at 6px, saying
+               PATH health from inside a LIST switcher, was unlearnable. Path health
+               lives in the strips and Settings ▸ Paths now. -->
+          <Border Width="9" Height="9" CornerRadius="{DynamicResource RmRadiusBadge}"
+                  VerticalAlignment="Center" Classes="paletted"
+                  Classes.p0="{Binding IsModlistPalette0}" Classes.p1="{Binding IsModlistPalette1}"
+                  Classes.p2="{Binding IsModlistPalette2}" Classes.p3="{Binding IsModlistPalette3}"
+                  Classes.p4="{Binding IsModlistPalette4}" Classes.p5="{Binding IsModlistPalette5}" />
+          <TextBlock Text="{Binding SelectedModlistName}"
+                     FontWeight="Medium" VerticalAlignment="Center" />
+          <PathIcon Data="{StaticResource RmIconChevronDown}" Width="9" Height="9"
+                    Foreground="{DynamicResource RmTextTertiaryBrush}" />
+        </StackPanel>
+
+        <!-- S-SELECTOR's palette-shell flyout (UI audit — it was a plain MenuFlyout
+             of text labels): rows of swatch · name · `n active` mono · per-list
+             drift glyph, current row checked, and the New/Manage footer the
+             contract names.
+
+             Each row carries its OWN command. A flyout's content lives in a popup,
+             so an ancestor binding reaching for $parent[Window] resolves against
+             nothing and fails in silence — that exact bug shipped in this control
+             once already. The footer binds the Button's inherited DataContext (the
+             hub), which a popup DOES carry. -->
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedLeft">
+            <StackPanel Width="280">
+              <!-- O19: the same shape as Tags ▾ — search above a scrolling list, with a
+                   two-button footer. A search here is not premature: modlists are cheap
+                   to make and the list grows the way tags did. -->
+              <TextBox Margin="6,6,6,4" Text="{Binding ModlistSearch}"
+                       AutomationProperties.Name="Search modlists"
+                       PlaceholderText="Search modlists…" />
+
+              <TextBlock Margin="8,4" Classes="small ter"
+                         IsVisible="{Binding ModlistSearchFoundNothing}"
+                         Text="{Binding ModlistSearchEmptyMessage}" />
+
+              <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding VisibleModlistChoices}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ModlistChoiceViewModel">
+                      <!-- Click as well as Command: a Flyout holding plain Buttons does
+                           NOT dismiss itself the way a MenuFlyout's items do, so the
+                           selector stayed open over the load state for the whole switch
+                           — settings capture, restore and rescan — with the list it was
+                           covering already changed underneath it. -->
+                      <Button Classes="listRow"
+                              Command="{Binding SelectCommand}"
+                              Click="OnModlistFlyoutAction"
+                              AutomationProperties.Name="{Binding Label}">
+                        <!-- The tick leads, in a FIXED slot, exactly as the tag rows do
+                             (O19): "which one am I on" is the first question the switcher
+                             answers, and at the far right it moved with the row's content.
+                             The "default" pill sits in its own fixed slot too, so neither
+                             marker shifts as names and counts change length. -->
+                        <Grid ColumnDefinitions="14,4,Auto,7,*,8,Auto,8,Auto,8,12" Height="26">
+                          <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}"
+                                    Width="9" Height="9" VerticalAlignment="Center"
+                                    Foreground="{DynamicResource RmAccentTextBrush}"
+                                    IsVisible="{Binding IsCurrent}" />
+                          <Border Grid.Column="2" Width="9" Height="9"
+                                  CornerRadius="{DynamicResource RmRadiusBadge}"
+                                  VerticalAlignment="Center" Classes="paletted"
+                                  Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                  Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                  Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                          <TextBlock Grid.Column="4" Text="{Binding Name}" Classes="pri"
+                                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                          <Border Grid.Column="6" Classes="statePill compact"
+                                  VerticalAlignment="Center" IsVisible="{Binding IsDefault}"
+                                  ToolTip.Tip="Opens when nothing else has been used, and cannot be deleted">
+                            <TextBlock Text="default" />
+                          </Border>
+                          <TextBlock Grid.Column="8" Text="{Binding ActiveLabel}" Classes="mono ter"
+                                     VerticalAlignment="Center" />
+                          <!-- The footer's drift glyphs, per list: accent dot for
+                               edited, warn triangle for changed-outside, hollow for
+                               never applied — in-sync stays silent, same decision. -->
+                          <Panel Grid.Column="10" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource RmIconDot}" Width="7" Height="7"
+                                      Foreground="{DynamicResource RmAccentTextBrush}"
+                                      IsVisible="{Binding IsDriftEdited}" />
+                            <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9"
+                                      Foreground="{DynamicResource RmWarningBrush}"
+                                      IsVisible="{Binding IsDriftOutside}" />
+                            <PathIcon Data="{StaticResource RmIconDotHollow}" Width="8" Height="8"
+                                      Foreground="{DynamicResource RmTextTertiaryBrush}"
+                                      IsVisible="{Binding IsDriftNever}" />
+                          </Panel>
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <Border Classes="divider" Height="1" Margin="0,4" />
+              <!-- Two buttons on one row, Manage left and New right — the same footer
+                   grammar as Tags ▾ ("Manage tags… / Clear"). They were stacked full-width
+                   rows, which made two ACTIONS look like two more modlists. -->
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,2">
+                <Button Grid.Column="0" Classes="quiet" Content="Manage…"
+                        Command="{Binding ManageModlistsCommand}"
+                        Click="OnModlistFlyoutAction"
+                        ToolTip.Tip="Rename, duplicate, make default and delete, on Settings ▸ Modlists" />
+                <Button Grid.Column="2" Classes="quiet" Content="New modlist…"
+                        Command="{Binding NewModlistCommand}"
+                        Click="OnModlistFlyoutAction"
+                        ToolTip.Tip="An empty list — every installed mod starts inactive" />
+              </Grid>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+
+      <Border Grid.Column="1" x:Name="InstanceDivider" Width="1" Height="18" Margin="6,0"
+              VerticalAlignment="Center" Classes="divider" />
+
+      <!-- 3 · Sort ▾ — split button: the left half sorts immediately with the current
+           settings, the ▾ opens the options (3f). -->
+      <SplitButton Grid.Column="2" x:Name="SortButton" Classes="toolbar" Content="Sort" Command="{Binding SortCommand}"
+                   Height="{DynamicResource RmToolbarControlHeight}" MinHeight="0" Padding="9,0"
+                   VerticalAlignment="Center"
+                   ToolTip.Tip="Sort the load order (community-rules aware)">
+        <SplitButton.Flyout>
+          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+            <!-- The log-level shape: IsChecked DISPLAYS, the command CHOOSES. As a
+                 TwoWay radio pair over an inverse property this wedged after a mode
+                 switch — the second click had nothing left to write. -->
+            <MenuItem Header="Topological · deps + rules" ToggleType="Radio"
+                      IsChecked="{Binding UseTopologicalSort}"
+                      Command="{Binding ChooseTopologicalSortCommand}" />
+            <MenuItem Header="Alphabetical in separators" ToggleType="Radio"
+                      IsChecked="{Binding UseAlphabeticalSort}"
+                      Command="{Binding ChooseAlphabeticalSortCommand}" />
+            <Separator />
+            <!-- "Keep separators intact" died with its pref (UI audit): nothing read
+                 it, and no coherent semantic exists for a topological sort. -->
+            <MenuItem Header="Snapshot before sorting" ToggleType="CheckBox"
+                      IsChecked="{Binding SnapshotBeforeSorting, Mode=TwoWay}" />
+            <Separator />
+            <!-- Enabled the moment you had a selection, and bound to nothing: it lit
+                 up and did nothing. Sorting a subset in place is real work, not a
+                 missing binding, so it says so instead of pretending. -->
+            <MenuItem IsEnabled="False" ToolTip.ShowOnDisabled="True"
+                      ToolTip.Tip="Not built yet — Sort orders the whole list">
+              <MenuItem.Header>
+                <!-- MenuItem.Header takes arbitrary content, which is how the count
+                     gets its own right-aligned column the way 3f shows it. -->
+                <Grid ColumnDefinitions="*,Auto" MinWidth="196">
+                  <TextBlock Grid.Column="0" Text="Sort selection only" />
+                  <TextBlock Grid.Column="1" Classes="mono ter" Text="{Binding SelectionCount}" />
+                </Grid>
+              </MenuItem.Header>
+            </MenuItem>
+            <!-- Said "Arrives with the Warnings dock (R4)". R4 shipped; this did not,
+                 and blaming a phase that is finished reads as a bug rather than a gap. -->
+            <MenuItem Header="Preview sort without applying" IsEnabled="False" ToolTip.ShowOnDisabled="True"
+                      ToolTip.Tip="Not built yet — sorting is undoable with ⌘Z if you dislike the result" />
+            <Separator />
+            <MenuItem Header="Sorting settings…" Command="{Binding OpenSettingsCommand}" />
+          </MenuFlyout>
+        </SplitButton.Flyout>
+      </SplitButton>
+
+      <!-- 4 · Undo / Redo. The tooltip NAMES the action, so "what would this undo"
+           never needs a guess. -->
+      <!-- 4 · REFRESH, immediately right of Sort.
+           Added against my own argument, and the owner's reasoning is the better one:
+           people subscribe to mods while the manager is open, and until the folders
+           themselves are watched this is the only way to pick a new one up. That is the
+           toolbar's own admission test - "used more than once per session" - met.
+           It keeps its menu home and F5; the toolbar is where the hand already is.
+
+           An icon button, like undo/redo beside it, rather than a labelled one: it is a
+           verb with no object and no state, and a word would cost more width than it
+           earns next to two controls that already read as a group. No gesture in the
+           tooltip - N3 took shortcuts out of the chrome (menus, the palette, the status
+           bar and the sheet keep theirs). -->
+      <Button Grid.Column="3" x:Name="RefreshButton" Classes="icon" Margin="6,0,0,0"
+              VerticalAlignment="Center"
+              Command="{Binding RefreshCommand}"
+              ToolTip.Tip="Rescan the mod folders for anything added or removed"
+              AutomationProperties.Name="Rescan mod folders">
+        <PathIcon Data="{StaticResource RmIconRefresh}" Width="13" Height="13" />
+      </Button>
+
+      <StackPanel Grid.Column="4" x:Name="UndoRedo" Orientation="Horizontal" Spacing="2" Margin="6,0,0,0"
+                  VerticalAlignment="Center">
+        <Button Classes="icon" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}"
+                ToolTip.Tip="{Binding UndoLabel}" AutomationProperties.Name="Undo">
+          <PathIcon Data="{StaticResource RmIconUndo}" Width="13" Height="13" />
+        </Button>
+        <Button Classes="icon" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}"
+                ToolTip.Tip="{Binding RedoLabel}" AutomationProperties.Name="Redo">
+          <PathIcon Data="{StaticResource RmIconRedo}" Width="13" Height="13" />
+        </Button>
+      </StackPanel>
+
+      <!-- 5 · Apply — the ONLY accent-filled control in the window. It raises the
+           inline commit bar; it never writes on its own (#4). -->
+      <!-- Classes="accent", never local brushes: the local values had no hover at
+           all and sat outside the class system (the survey's first must-fix). -->
+      <SplitButton Grid.Column="5" x:Name="ApplyButton" Classes="accent" Content="Apply to game"
+                   Command="{Binding RequestApplyCommand}" Margin="6,0,0,0"
+                   Height="{DynamicResource RmToolbarControlHeight}" MinHeight="0" Padding="11,0"
+                   VerticalAlignment="Center" FontWeight="SemiBold">
+        <SplitButton.Flyout>
+          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+            <MenuItem Header="Apply to game" Command="{Binding RequestApplyCommand}"
+                      InputGesture="{Binding ApplyGesture}" />
+            <!-- Both said "Arrives with Settings ▸ Game launch (R6)". R6 shipped and
+                 wired these two actions — on the MENU BAR. The toolbar's copies were
+                 left disabled, so the same action was live in one place and dead in
+                 another, which is what happens when a surface is duplicated by hand. -->
+            <MenuItem Header="Apply and launch RimWorld"
+                      Command="{Binding ApplyAndLaunchCommand}"
+                      InputGesture="{Binding ApplyAndLaunchGesture}" />
+            <MenuItem Header="Launch without applying"
+                      Command="{Binding LaunchGameCommand}" />
+            <Separator />
+            <!-- Disabled AND silent, which is the one thing a disabled control must
+                 never be. Both are real features that do not exist yet; saying so is
+                 the difference between "not built" and "broken". -->
+            <MenuItem Header="Preview what will be written…" IsEnabled="False" ToolTip.ShowOnDisabled="True"
+                      ToolTip.Tip="Not built yet — Apply already names the file and the backup before it writes" />
+            <MenuItem Header="Revert to last applied" IsEnabled="False" ToolTip.ShowOnDisabled="True"
+                      ToolTip.Tip="Not built yet — History ⌘⇧H restores any earlier state" />
+            <Separator />
+            <!-- The dimmed footer answers "is there anything to apply" without
+                 closing the flyout. It is the pending DIFF, not a headcount. -->
+            <MenuItem IsHitTestVisible="False" Focusable="False">
+              <MenuItem.Header>
+                <TextBlock Text="{Binding PendingDiffText}" Classes="small ter" />
+              </MenuItem.Header>
+            </MenuItem>
+          </MenuFlyout>
+        </SplitButton.Flyout>
+      </SplitButton>
+
+      <Border Grid.Column="6" x:Name="SearchDivider" Width="1" Height="18" Margin="8,0"
+              VerticalAlignment="Center" Classes="divider" />
+
+      <!-- 7 · search. INSET (bg.surface) unlike the raised buttons — the contrast is
+           what says "this one takes typing". -->
+      <Border Grid.Column="7" HorizontalAlignment="Stretch" Margin="0,0,6,0"
+              Height="{DynamicResource RmToolbarControlHeight}" VerticalAlignment="Center"
+              CornerRadius="{DynamicResource RmRadiusControl}" BorderThickness="1"
+              BorderBrush="{DynamicResource RmBorderStrongBrush}"
+              Background="{DynamicResource RmBackgroundSurfaceBrush}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+          <PathIcon Grid.Column="0" Data="{StaticResource RmIconSearch}" Width="11" Height="11"
+                    Margin="7,0,5,0" VerticalAlignment="Center"
+                    Foreground="{DynamicResource RmTextTertiaryBrush}" />
+          <TextBox Grid.Column="1" x:Name="SearchBox" Text="{Binding SearchText}"
+                   AutomationProperties.Name="Search mods by name, packageId or author"
+                   BorderThickness="0" Background="Transparent" Padding="0" MinHeight="0"
+                   VerticalContentAlignment="Center"
+                   PlaceholderText="name, packageId, author…" />
+          <!--
+            O16 · which pane the search narrows. Inside the search field, because it
+            qualifies the term rather than standing beside it as a fifth filter — and it
+            reads as part of the sentence the box is asking: "name, packageId, author…
+            in Both".
+
+            A MenuFlyout of three radios, not a cycling button: three states cycle badly
+            (you cannot get back without passing through the one you did not want), and
+            the current scope has to be readable without clicking.
+          -->
+          <Button Grid.Column="2" Classes="chip" Margin="3" Padding="5,0" MinHeight="0" Height="18"
+                  AutomationProperties.Name="Which pane the search narrows"
+                  ToolTip.Tip="Choose which list the search narrows">
+            <StackPanel Orientation="Horizontal" Spacing="3">
+              <TextBlock Text="{Binding SearchScopeLabel}" VerticalAlignment="Center" />
+              <PathIcon Data="{StaticResource RmIconChevronDown}" Width="7" Height="7"
+                        VerticalAlignment="Center" />
+            </StackPanel>
+            <Button.Flyout>
+              <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="Both lists" ToggleType="Radio"
+                          IsChecked="{Binding SearchesBoth}"
+                          Command="{Binding SearchBothCommand}" />
+                <MenuItem Header="Active load order only" ToggleType="Radio"
+                          IsChecked="{Binding SearchesActiveOnly}"
+                          Command="{Binding SearchActiveOnlyCommand}" />
+                <MenuItem Header="Installed only" ToggleType="Radio"
+                          IsChecked="{Binding SearchesInactiveOnly}"
+                          Command="{Binding SearchInactiveOnlyCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+          <ToggleButton Grid.Column="3" Content=".*" IsChecked="{Binding UseRegex}"
+                        Classes="chip" Margin="0,3,3,3" Padding="5,0" MinHeight="0" Height="18"
+                        FontFamily="{DynamicResource RmFontMono}"
+                        ToolTip.Tip="Treat the search as a regular expression" />
+        </Grid>
+      </Border>
+
+      <!--
+        8 · filter chips. Toggles; active = accent border + bg.selected.
+
+        Below 1150px (2k) the four chips MOVE into the flyout of the "Filters N ▾"
+        button beside them and turn vertical. Moved, not copied: two declarations of
+        four filter controls is two places for them to drift, and the drift would be
+        invisible because only one of them is on screen at a time.
+
+        Columns ▾ stays out of that group and stays visible. It is not a filter — it
+        configures the inactive pane's columns — and hiding it inside a button labelled
+        "Filters 2" would be a lie about where it went.
+      -->
+      <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="4"
+                  VerticalAlignment="Center">
+
+        <StackPanel x:Name="FilterChips" Orientation="Horizontal" Spacing="4"
+                    VerticalAlignment="Center">
+
+        <!-- Tags ▾ (3f): a checkbox per tag with its colour chip and count, the
+             Untagged pseudo-tag, and the Match any / Match all switch with Clear.
+             A Button, not a ToggleButton: its click opens the flyout, so a toggle lit
+             the chip on the very click that opened the menu (N4g). `on` is bound to
+             the filter itself, so the chip cannot report a filter that is not running. -->
+        <Button Classes="chip" Classes.on="{Binding HasTagFilter}" ToolTip.Tip="Filter by tag">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{Binding TagFilterLabel}" VerticalAlignment="Center" />
+            <PathIcon Data="{StaticResource RmIconChevronDown}" Width="8" Height="8" />
+          </StackPanel>
+          <Button.Flyout>
+            <!--
+              O1/O7 · No checkboxes. Selection is a tick in a fixed 14px slot plus a lit
+              row, which is the same grammar the modlist selector and the row menus use —
+              Fluent's CheckBox is built for 32px rows and carried its own minimums, so
+              nineteen tags made a flyout taller than the window with no way to scroll it
+              and no way to narrow it.
+            -->
+            <Flyout Placement="BottomEdgeAlignedLeft">
+              <StackPanel Width="250" Spacing="1">
+                <!-- The mode pair leads (S-TAGFILTER). It governs how every row below
+                     combines, so it belongs above them: read as a heading it explains
+                     the list, read as a footer it looked like one more action beside
+                     Clear. Two halves of one control, so they share a row and each is
+                     lit by the state rather than by its own click. -->
+                <Grid ColumnDefinitions="*,*" Margin="6,6,6,4">
+                  <Button Grid.Column="0" Classes="tagMode" Classes.on="{Binding !MatchAllTags}"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Command="{Binding UseMatchAnyCommand}" Content="Match any" />
+                  <Button Grid.Column="1" Classes="tagMode" Classes.on="{Binding MatchAllTags}"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Command="{Binding UseMatchAllCommand}" Content="Match all" />
+                </Grid>
+
+                <TextBox Margin="6,0,6,2" Text="{Binding TagSearch}"
+                         AutomationProperties.Name="Search tags"
+                         PlaceholderText="Search tags…" />
+
+                <TextBlock Margin="8,4" Classes="small ter"
+                           IsVisible="{Binding TagSearchFoundNothing}"
+                           Text="{Binding TagSearchEmptyMessage}" />
+
+                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                  <ItemsControl ItemsSource="{Binding VisibleTags}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TagFilterViewModel">
+                        <Button Classes="listRow" Classes.on="{Binding IsSelected}"
+                                Command="{Binding ToggleCommand}"
+                                AutomationProperties.Name="{Binding Name}">
+                          <Grid ColumnDefinitions="14,4,Auto,7,*,8,Auto" Height="24">
+                            <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}"
+                                      Width="9" Height="9" VerticalAlignment="Center"
+                                      Foreground="{DynamicResource RmAccentTextBrush}"
+                                      IsVisible="{Binding IsSelected}" />
+                            <!-- Hue via a bound style class, so it flips with the theme. -->
+                            <Border Grid.Column="2" Width="8" Height="8" CornerRadius="2"
+                                    VerticalAlignment="Center" Classes="paletted"
+                                    Classes.p0="{Binding IsPalette0}" Classes.p1="{Binding IsPalette1}"
+                                    Classes.p2="{Binding IsPalette2}" Classes.p3="{Binding IsPalette3}"
+                                    Classes.p4="{Binding IsPalette4}" Classes.p5="{Binding IsPalette5}" />
+                            <TextBlock Grid.Column="4" Text="{Binding Name}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="6" Text="{Binding Count}" Classes="mono ter"
+                                       VerticalAlignment="Center" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+
+                <Border Height="1" Margin="0,4" Classes="divider" />
+
+                <!-- The two pseudo-tags. Favourite and "has no tags" are both metadata a
+                     mod carries the way a tag is, so one control covers all of it rather
+                     than growing a chip each. -->
+                <Button Classes="listRow" Classes.on="{Binding FavouritesOnly}"
+                        Command="{Binding ToggleFavouritesFilterCommand}"
+                        AutomationProperties.Name="Favourites">
+                  <Grid ColumnDefinitions="14,4,Auto,7,*,8,Auto" Height="24">
+                    <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}"
+                              Width="9" Height="9" VerticalAlignment="Center"
+                              Foreground="{DynamicResource RmAccentTextBrush}"
+                              IsVisible="{Binding FavouritesOnly}" />
+                    <!-- O14 landed: its own token, generated per theme at a hue no
+                         palette entry uses. It is deliberately NOT RmWarningBrush —
+                         gold means "there is a warning" everywhere else here, which is
+                         the colour-meaning overload E2 was filed against. -->
+                    <PathIcon Grid.Column="2" Data="{StaticResource RmIconFavorite}"
+                              Width="9" Height="9" VerticalAlignment="Center"
+                              Foreground="{DynamicResource RmFavouriteBrush}" />
+                    <TextBlock Grid.Column="4" Text="Favourites" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="6" Text="{Binding FavouriteCount}" Classes="mono ter"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Button>
+
+                <Button Classes="listRow" Classes.on="{Binding UntaggedOnly}"
+                        Command="{Binding ToggleUntaggedFilterCommand}"
+                        AutomationProperties.Name="Untagged">
+                  <Grid ColumnDefinitions="14,4,Auto,7,*,8,Auto" Height="24">
+                    <PathIcon Grid.Column="0" Data="{StaticResource RmIconCheck}"
+                              Width="9" Height="9" VerticalAlignment="Center"
+                              Foreground="{DynamicResource RmAccentTextBrush}"
+                              IsVisible="{Binding UntaggedOnly}" />
+                    <Border Grid.Column="2" Width="8" Height="8" CornerRadius="2"
+                            VerticalAlignment="Center" BorderThickness="1"
+                            BorderBrush="{DynamicResource RmTextTertiaryBrush}" />
+                    <TextBlock Grid.Column="4" Text="Untagged" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="6" Text="{Binding UntaggedCount}" Classes="mono ter"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Button>
+
+                <Border Height="1" Margin="0,4" Classes="divider" />
+
+                <!-- Buttons, not TextBlocks: these were labels for four phases — one
+                     styled `link` so it even looked pressable (N4g). Parameterless
+                     commands on purpose: CommandParameter="…" is a string, the trap
+                     that killed all six tag swatches.
+                     "Manage tags…" opens Settings ON the Tags page, not merely Settings:
+                     a link that names where to go and then does not take you there is
+                     the same broken promise as first-run's Diagnostics report (D6). -->
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,2">
+                  <Button Grid.Column="0" Classes="quiet"
+                          Command="{Binding ManageTagsCommand}" Content="Manage tags…"
+                          ToolTip.Tip="Rename, recolour and delete tags in Settings" />
+                  <Button Grid.Column="2" Classes="quiet"
+                          Command="{Binding ClearTagFiltersCommand}" Content="Clear" />
+                </Grid>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <ToggleButton Classes="chip" IsChecked="{Binding WarningsOnly}"
+                      ToolTip.Tip="Only mods with warnings">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9" />
+            <TextBlock Text="Warnings" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+
+        <!-- "C# only" and "Unsupported" are both gone (UI-7), and each waited for its
+             replacement rather than leaving a gap.
+
+             C# only filtered on the signal the CDPTSL column carried, which §0a moved
+             into mod info as words — a chip filtering on something the lists no longer
+             show is a filter you cannot verify by looking.
+
+             Unsupported was held back through all of N1 on purpose: N2's own text says
+             the inactive pane surfacing version warnings "is what makes removing the
+             Unsupported chip safe rather than lossy". That is now true — every mod
+             whose About.xml omits your game version carries a warning on its row,
+             active or inactive, and the dock groups them under UNSUPPORTED VERSION. So
+             the answer is on screen instead of behind a chip you had to remember.
+
+             Both are removed all the way down — chip, view-model property, the
+             FilterCriteria option and LayoutState's field — never left half-wired. -->
+        </StackPanel>
+
+        <!-- The collapsed form of the four chips above (2k). Hidden while the window
+             is wide; the count is the number of filters ON, so the button says what
+             the chips it replaced would have shown. -->
+        <ToggleButton x:Name="FilterCollapse" Classes="chip"
+                      IsVisible="False" VerticalAlignment="Center"
+                      AutomationProperties.Name="Filters"
+                      ToolTip.Tip="Tag and warning filters">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{Binding FilterButtonText}" VerticalAlignment="Center" />
+            <PathIcon Data="{StaticResource RmIconChevronDown}" Width="8" Height="8" />
+          </StackPanel>
+          <ToggleButton.Flyout>
+            <Flyout Placement="BottomEdgeAlignedRight" />
+          </ToggleButton.Flyout>
+        </ToggleButton>
+
+        <!-- Columns ▾ is gone (N1 · UI-7 / UI-7.3, §0b). It configured the inactive pane
+             and nothing else, and that pane now decides its own columns from the width
+             it actually has: drag the splitter and VER, then AUTHOR, then PACKAGEID
+             appear as there is room for them without crushing NAME. §0b's "all columns
+             shown, at full width" is exactly that, minus a control to forget you set.
+
+             The two entries it carried that were rendered disabled — Size on disk and
+             Last updated — did not survive either. Neither is in the scan, and a
+             disabled row in a menu that no longer exists is not a promise anyone can
+             read. They come back as columns when the scan can fill them. -->
+      </StackPanel>
+
+      <!-- Columns 9 and 10 held a divider and the "Actions" button that opened the
+           command palette. Both are GONE with it (O10). -->
+
+      <!--
+        2k · the ⋯ overflow, below 900px only. It carries what the toolbar gave up:
+        the instance switcher, sorting, undo/redo and the palette. Each entry is the
+        SAME command the wide control runs, so there is nothing here that can drift
+        out of step with the toolbar it replaced.
+
+        Columns ▾ is deliberately NOT here. Below 900 there is one list drawn with the
+        narrow row template, which has no columns to configure — a picker for columns
+        that are not on screen would be a control that does nothing.
+
+        The filter chips are not here either: they are already in the "Filters N ▾"
+        flyout, which the breakpoint-1 collapse put them in on the way down to here.
+      -->
+      <Button Grid.Column="10" x:Name="OverflowButton" Classes="toolbar" Padding="9,0"
+              IsVisible="False" ToolTip.Tip="More toolbar actions"
+              AutomationProperties.Name="More toolbar actions">
+        <!-- A real geometry, not ⋯ (non-negotiable #12, T2). -->
+        <PathIcon Data="{StaticResource RmIconEllipsis}" Width="13" Height="13"
+                  VerticalAlignment="Center" />
+        <Button.Flyout>
+          <MenuFlyout Placement="BottomEdgeAlignedRight">
+            <!-- Below 900px the selector is off the bar, so the switcher lives here.
+                 Same rows, same per-row commands, one source. -->
+            <MenuItem Header="Modlist" ItemsSource="{Binding ModlistChoices}">
+              <MenuItem.ItemContainerTheme>
+                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                              x:DataType="vm:ModlistChoiceViewModel">
+                  <Setter Property="Header" Value="{Binding Label}" />
+                  <Setter Property="Command" Value="{Binding SelectCommand}" />
+                  <Setter Property="ToggleType" Value="Radio" />
+                  <Setter Property="IsChecked" Value="{Binding IsCurrent}" />
+                </ControlTheme>
+              </MenuItem.ItemContainerTheme>
+            </MenuItem>
+            <Separator />
+            <MenuItem Header="Sort load order" Command="{Binding SortCommand}" />
+            <!-- IsChecked DISPLAYS, the command CHOOSES — the same shape as the Sort ▾
+                 flyout above. These two were TwoWay radios over an inverse computed
+                 property with no setter and no command, so the write went nowhere: the
+                 radio flipped and the mode did not, and below 900px this overflow is
+                 the ONLY sort control, which made alphabetical unreachable there. -->
+            <MenuItem Header="Topological · deps + rules" ToggleType="Radio"
+                      IsChecked="{Binding UseTopologicalSort}"
+                      Command="{Binding ChooseTopologicalSortCommand}" />
+            <MenuItem Header="Alphabetical in separators" ToggleType="Radio"
+                      IsChecked="{Binding UseAlphabeticalSort}"
+                      Command="{Binding ChooseAlphabeticalSortCommand}" />
+            <Separator />
+            <MenuItem Header="{Binding UndoLabel}" Command="{Binding UndoCommand}"
+                      IsEnabled="{Binding CanUndo}" />
+            <MenuItem Header="{Binding RedoLabel}" Command="{Binding RedoCommand}"
+                      IsEnabled="{Binding CanRedo}" />
+          </MenuFlyout>
+        </Button.Flyout>
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

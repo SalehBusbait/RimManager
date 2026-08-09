@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.MenuBarView"
+             x:DataType="vm:MainWindowViewModel">
+  <!--
+    Menu bar, 28px (1a). App mark + five menus on the left; game version and mod
+    counts on the right as READ-ONLY text — this replaces the old game-version
+    dropdown, which implied the version was something you could change.
+
+    The items are built in code-behind from MenuModel + ShortcutTable rather than
+    through Menu.ItemsSource. Container generation assigns Header = item as a LOCAL
+    value, which outranks any ControlTheme setter, so a data-bound menu renders its
+    view-model type name instead of a label. Building real MenuItems also lets the
+    Menu treat top-level entries as top-level (no submenu chevron) and lets
+    separators be actual Separator controls.
+  -->
+  <Border Height="{DynamicResource RmMenuBarHeight}"
+          Background="{DynamicResource RmBackgroundElevatedBrush}">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+
+      <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+        <!--
+          `1a` opens this band with a 12px accent square and the word "RimManager".
+          Both are gone, deliberately: the title bar already carries the app icon and
+          its name, so the pair restated the same two facts eight pixels below
+          themselves and pushed File eight pixels right of where the eye expects it.
+          The badge earns its place at 34px and up (About, first run), not at 12px
+          where three drop pods are mush.
+        -->
+        <Menu x:Name="Bar" VerticalAlignment="Center" Margin="4,0,0,0" />
+      </StackPanel>
+
+      <!-- Read-only: "RimWorld 1.6.4104 · 214 active / 342 installed". Hidden below
+           900px (2k), where the segmented switch already carries both counts and there
+           is no room for the version. -->
+      <StackPanel Grid.Column="2" x:Name="VersionAndCounts" Orientation="Horizontal"
+                  VerticalAlignment="Center" Margin="0,0,10,0"
+                  ToolTip.Tip="{Binding GameVersion, StringFormat='RimWorld {0}'}">
+        <TextBlock Classes="mono ter" Text="{Binding GameVersion, StringFormat='RimWorld {0}'}" />
+        <TextBlock Classes="mono ter" Text="{Binding ActiveCount, StringFormat=' · {0} active'}" />
+        <TextBlock Classes="mono ter" Text="{Binding InstalledCount, StringFormat=' / {0} installed'}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

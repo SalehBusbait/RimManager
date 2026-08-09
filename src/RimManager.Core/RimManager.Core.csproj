@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>RimManager.Core</RootNamespace>
+    <AssemblyName>RimManager.Core</AssemblyName>
+    <!--
+      Core is pure domain. Its ONLY infrastructure dependency is the logging
+      abstraction. No UI, no direct filesystem, no I/O concretions.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RimManager.Core.Tests" />
+  </ItemGroup>
+
+</Project>

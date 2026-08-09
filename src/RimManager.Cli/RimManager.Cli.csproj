@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RimManager.Cli</RootNamespace>
+    <AssemblyName>rimmanager</AssemblyName>
+    <!-- A command-line framework (System.CommandLine) arrives with the first real
+         command in Phase 1 (`list`). Phase 0 just proves the wiring. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RimManager.Core\RimManager.Core.csproj" />
+    <ProjectReference Include="..\RimManager.Storage\RimManager.Storage.csproj" />
+    <ProjectReference Include="..\RimManager.Integrations\RimManager.Integrations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+</Project>

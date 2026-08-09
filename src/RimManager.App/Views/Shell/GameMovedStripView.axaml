@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.GameMovedStripView"
+             x:DataType="vm:MainWindowViewModel"
+             IsVisible="{Binding ShowGameMovedStrip}">
+  <!--
+    N5b · something other than RimManager rewrote ModsConfig.xml — almost always
+    RimWorld itself, on "Load mod list from save". A strip and never a modal (#4):
+    this state occurs in NORMAL PLAY, and a dialog that fires in the normal workflow
+    is one people learn to dismiss unread.
+
+    T5 put it on the shared strip band (S-STRIPS): warn tone — unlike a mod arriving
+    on disk, this state has a wrong answer (the next Apply overwrites what the game
+    just wrote) — with the move-arrows identity icon.
+
+    S-ORDERDIFF completed the strip (T7, the plan its old comment promised): "Review
+    differences…" leads, opening the LCS-anchored diff; "Save as new modlist" stays
+    one press away because it is the offer that destroys nothing (N5b's default);
+    and "Replace this list" LEFT the strip for the dialog's "Take theirs" — the one
+    destructive verb now sits beside the evidence instead of before it. The × is
+    "keep mine": the list stands, and the drift zone's ▲ remains the way back in.
+    Everything here is append-only: nothing can destroy an arrangement that is not
+    first captured to History by the command it runs.
+  -->
+  <Border Classes="strip warn" AutomationProperties.Name="The game's mod list changed">
+    <Grid ColumnDefinitions="Auto,10,Auto,8,*,10,Auto,4,Auto,4,Auto">
+
+      <PathIcon Grid.Column="0" Classes="stripIcon" Data="{StaticResource RmIconMoveArrow}"
+                Width="13" Height="13" VerticalAlignment="Center" />
+
+      <TextBlock Grid.Column="2" Text="{Binding GameMoved.Headline}"
+                 FontSize="{DynamicResource RmFontSizeBody}" FontWeight="SemiBold"
+                 Foreground="{DynamicResource RmTextPrimaryBrush}"
+                 VerticalAlignment="Center" />
+
+      <!-- The detail is several sentences; the line shows what fits and the tooltip
+           carries it whole. A star Grid column, never a horizontal StackPanel. -->
+      <TextBlock Grid.Column="4" Text="{Binding GameMoved.Detail}" Classes="small sec"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                 ToolTip.Tip="{Binding GameMoved.Detail}" />
+
+      <Button Grid.Column="6" Classes="stripPrimary" Content="Review differences…"
+              IsVisible="{Binding !GameMoved.IsCrashReset}"
+              Command="{Binding OpenOrderDiffCommand}"
+              ToolTip.Tip="See exactly what the game's order would change — then keep yours or take theirs"
+              VerticalAlignment="Center" />
+
+      <!-- The offer that destroys nothing stays one press away (N5b's default). -->
+      <Button Grid.Column="8" Classes="quiet" Content="Save as new modlist"
+              IsVisible="{Binding !GameMoved.IsCrashReset}"
+              Command="{Binding AdoptGameOrderAsNewModlistCommand}"
+              ToolTip.Tip="Save the game's order as a new modlist and open it — this list stays as it is"
+              VerticalAlignment="Center" />
+
+      <!-- The crash reset keeps Apply primary: adopting an accident is not a thing
+           to review, and the remedy is the ordinary Apply with its own question.
+           The diff stays reachable — its wall of removals IS the honest picture. -->
+      <Button Grid.Column="6" Classes="stripPrimary" Content="Apply to game"
+              IsVisible="{Binding GameMoved.IsCrashReset}"
+              Command="{Binding RequestApplyCommand}"
+              ToolTip.Tip="Write this list back to the game"
+              VerticalAlignment="Center" />
+      <Button Grid.Column="8" Classes="quiet" Content="Review differences…"
+              IsVisible="{Binding GameMoved.IsCrashReset}"
+              Command="{Binding OpenOrderDiffCommand}"
+              ToolTip.Tip="See what the reset left active"
+              VerticalAlignment="Center" />
+
+      <Button Grid.Column="10" Classes="affordance" Padding="4" VerticalAlignment="Center"
+              Command="{Binding DismissGameMovedStripCommand}"
+              AutomationProperties.Name="Dismiss the game-changed notice"
+              ToolTip.Tip="Keep this list as it is — the status bar's ▲ reopens the review">
+        <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

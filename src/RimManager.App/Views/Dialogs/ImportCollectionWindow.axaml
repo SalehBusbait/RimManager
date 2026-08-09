@@ -1,0 +1,310 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        xmlns:ctl="using:RimManager.App.Views.Controls"
+        x:Class="RimManager.App.Views.Dialogs.ImportCollectionWindow"
+        x:DataType="vm:ImportCollectionViewModel"
+        Title="Import Steam collection"
+        Width="640" Height="600" MinWidth="560" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    2i-3 · the import wizard. Modal, TWO STEPS, and one of only three modal surfaces
+    (#4): the strategy it records can deactivate a hundred mods and it starts a batch
+    of downloads.
+
+    Step 2 was specified as the Collection dock tab. That tab is gone — the dock is
+    where standing state is observed, and a resolved collection is a one-shot task you
+    produce and then leave stale, which is the same argument the design makes for why
+    Cycles is a category and not a tab. All of 2e's content is here.
+
+    The frame does not resize between steps: a dialog that jumps size mid-flow reads as
+    two dialogs.
+  -->
+  <DockPanel Margin="20,16">
+
+    <!-- ===================== footer: the promise, then the way out ===================== -->
+    <Border DockPanel.Dock="Bottom" Height="{DynamicResource RmCommitBarHeight}" Margin="0,14,0,0"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <TextBlock Grid.Column="0" Classes="small ter" VerticalAlignment="Center"
+                   Text="{Binding FooterNote}" TextTrimming="CharacterEllipsis" />
+
+        <Button Grid.Column="1" Classes="quiet" Content="Back" Margin="0,0,6,0"
+                IsVisible="{Binding IsStep2}"
+                Command="{Binding BackCommand}" />
+
+        <Button Grid.Column="2" Classes="quiet" Content="Cancel" Margin="0,0,6,0"
+                IsCancel="True" Click="OnCancel" />
+
+        <!-- Step 1 advances; only step 2's primary commits. -->
+        <Button Grid.Column="3" Classes="accent" Content="{Binding PrimaryLabel}"
+                IsEnabled="{Binding CanCommit}"
+                Click="OnPrimary" />
+      </Grid>
+    </Border>
+
+    <!--
+      Both steps live in one Panel, which is the DockPanel's LAST child and therefore
+      the one that fills. Two undocked children would put the first against the left
+      edge at its minimum width — a DockPanel docks an undocked non-last child Left,
+      and it renders either way, which is how the dock's empty states shipped wrong.
+    -->
+    <Panel>
+
+    <!-- ============================== STEP 1 ============================== -->
+    <StackPanel Spacing="12" VerticalAlignment="Top" IsVisible="{Binding IsStep1}">
+
+      <StackPanel Spacing="5">
+        <TextBlock Text="Collection URL or ID" Classes="small sec" />
+
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0" Classes="inset"
+                   FontFamily="{DynamicResource RmFontMono}"
+                   Text="{Binding Url, Mode=TwoWay}"
+                   PlaceholderText="https://steamcommunity.com/sharedfiles/filedetails/?id=…"
+                   AutomationProperties.Name="Collection URL or ID" />
+          <Button Grid.Column="1" Classes="quiet" Content="Fetch" Margin="8,0,0,0"
+                  IsDefault="True"
+                  Command="{Binding FetchCommand}"
+                  IsEnabled="{Binding CanFetch}" />
+        </Grid>
+
+        <TextBlock Classes="small ter" IsVisible="{Binding ShowsHint}"
+                   Text="Reading a collection only reads it — nothing is subscribed, downloaded or changed." />
+
+        <!-- Resolving a large collection is two round trips and takes over ten seconds.
+             Without this the greyed Fetch button reads as a dead button. -->
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsFetching}">
+          <!-- MinWidth/MinHeight 0, or Fluent's own 200x4 floor beats the 60x2 asked
+               for and the bar takes a third of the dialog. See the table in
+               Themes/Controls.axaml. -->
+          <ProgressBar Width="60" Height="2" MinWidth="0" MinHeight="0"
+                       IsIndeterminate="True" VerticalAlignment="Center" />
+          <TextBlock Text="Fetching the collection…" Classes="small ter" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasResolved}">
+          <PathIcon Data="{StaticResource RmIconCheck}" Width="10" Height="10"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource RmSuccessBrush}" />
+          <!-- MaxWidth, matching the error line below: inside a horizontal StackPanel
+               nothing else bounds the measure, so TextTrimming alone would never fire
+               and a long collection title would run past this 640px dialog's edge. -->
+          <TextBlock Text="{Binding ResolvedLine}" Classes="small ok" VerticalAlignment="Center"
+                     MaxWidth="500" HorizontalAlignment="Left"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ResolvedLine}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasError}">
+          <PathIcon Data="{StaticResource RmIconWarning}" Width="10" Height="10"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource RmDangerBrush}" />
+          <TextBlock Text="{Binding ErrorText}" Classes="small bad" VerticalAlignment="Center"
+                     TextWrapping="Wrap" MaxWidth="500" HorizontalAlignment="Left" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- ==================== what RimManager found ==================== -->
+      <Border Classes="card" Padding="12,10" IsVisible="{Binding HasResolved}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="WHAT RIMMANAGER FOUND" Classes="micro" />
+
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Classes="ok" Text="{Binding Collection.PresentCount, StringFormat='{}{0} already installed'}" />
+            <TextBlock Classes="warn" Text="{Binding Collection.ToDownloadCount, StringFormat='{}{0} need downloading'}" />
+            <TextBlock Classes="bad" Text="{Binding Collection.UnavailableCount, StringFormat='{}{0} unavailable'}" />
+            <TextBlock Classes="sec" Text="{Binding Collection.AlreadyActiveCount, StringFormat='{}{0} already active'}" />
+          </StackPanel>
+
+          <!-- Every segment is a real count, so the fourth uses a colour that reads as
+               FILLED. Drawn at the track colour it would read as leftover space, and
+               "131 already active" would look like nothing at all. -->
+          <Border Height="6" CornerRadius="{DynamicResource RmRadiusBadge}" ClipToBounds="True"
+                  Background="{DynamicResource RmBackgroundAltBrush}">
+            <ctl:StackedBar Installed="{Binding InstalledShare}"
+                            ToDownload="{Binding ToDownloadShare}"
+                            Unavailable="{Binding UnavailableShare}"
+                            AlreadyActive="{Binding AlreadyActiveShare}"
+                            InstalledBrush="{DynamicResource RmSuccessBrush}"
+                            ToDownloadBrush="{DynamicResource RmWarningBrush}"
+                            UnavailableBrush="{DynamicResource RmDangerBrush}"
+                            AlreadyActiveBrush="{DynamicResource RmTextSecondaryBrush}" />
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <!-- ======================= how to add them ======================= -->
+      <StackPanel Spacing="6" IsVisible="{Binding HasResolved}">
+        <TextBlock Text="HOW TO ADD THEM" Classes="micro" />
+
+        <RadioButton Classes="card" GroupName="importStrategy"
+                     IsChecked="{Binding Collection.IsAppendGroup, Mode=TwoWay}">
+          <StackPanel Spacing="1">
+            <TextBlock Text="Append as a new separator group" Classes="pri" />
+            <TextBlock Classes="note"
+                       Text="Your current order is untouched; new mods land in a group named after the collection." />
+          </StackPanel>
+        </RadioButton>
+
+        <RadioButton Classes="card" GroupName="importStrategy"
+                     IsChecked="{Binding Collection.IsMergeAndSort, Mode=TwoWay}">
+          <StackPanel Spacing="1">
+            <TextBlock Text="Merge and sort everything" Classes="pri" />
+            <TextBlock Classes="note"
+                       Text="Runs a full sort afterwards. Snapshot taken first." />
+          </StackPanel>
+        </RadioButton>
+
+        <RadioButton Classes="card" GroupName="importStrategy"
+                     IsChecked="{Binding Collection.IsReplace, Mode=TwoWay}">
+          <StackPanel Spacing="1">
+            <TextBlock Text="Replace my load order" Classes="pri" />
+            <!-- The only one of the four that removes anything, so it is the only one
+                 whose consequence is a measured number rather than a description. -->
+            <TextBlock Text="{Binding ReplaceConsequence}" Classes="note warn" />
+          </StackPanel>
+        </RadioButton>
+
+        <!-- NF-10's landing, offered here for coherence: both sharing vehicles
+             (.rwlist items and collections) can arrive as a new modlist. -->
+        <RadioButton Classes="card" GroupName="importStrategy"
+                     IsChecked="{Binding Collection.IsNewModlist, Mode=TwoWay}">
+          <StackPanel Spacing="1">
+            <TextBlock Text="Create a new modlist" Classes="pri" />
+            <TextBlock Classes="note"
+                       Text="This list stays as it is. Ticked mods you already have form a new modlist in collection order; missing ones still download and arrive inactive." />
+          </StackPanel>
+        </RadioButton>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- ============================== STEP 2 ============================== -->
+    <!-- 2e's content, whole: the four-way header, then one row per member with the
+         state, size and action it allows. Only actionable rows can be ticked. -->
+    <DockPanel IsVisible="{Binding IsStep2}">
+
+      <StackPanel DockPanel.Dock="Top" Spacing="3" Margin="0,0,0,10">
+        <TextBlock Text="{Binding Title}" Classes="title" TextTrimming="CharacterEllipsis" />
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding StrategyRecap}" Classes="small sec"
+                     TextTrimming="CharacterEllipsis" />
+          <!-- Viewing the collection, separate from the route that installs it. -->
+          <Button Grid.Column="2" Classes="quiet"
+                  Command="{Binding OpenWorkshopCommand}"
+                  ToolTip.Tip="Opens the collection page — in the Steam client if it is running, otherwise in your browser">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="View collection" VerticalAlignment="Center" />
+              <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                        VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+      </StackPanel>
+
+      <!--
+        HOW TO GET THEM — the install route, shown only when something needs fetching.
+        Two genuinely different outcomes, so it is a choice rather than a fallback:
+        subscribing leaves mods Steam-managed and auto-updating, SteamCMD leaves an
+        unmanaged copy in Mods/ that only RimManager tracks. Defaulted from whether the
+        Steam client is actually running.
+      -->
+      <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,10"
+                  IsVisible="{Binding ShowsRoute}">
+        <TextBlock Text="HOW TO GET THE MISSING ONES" Classes="micro" />
+        <Grid ColumnDefinitions="*,10,*">
+          <RadioButton Grid.Column="0" Classes="card" GroupName="importRoute"
+                       IsChecked="{Binding IsSubscribeRoute, Mode=TwoWay}">
+            <StackPanel Spacing="1">
+              <TextBlock Text="Subscribe in Steam" Classes="pri" />
+              <!-- Says exactly what it does today. A Steamworks SubscribeItem would be
+                   a better implementation of this same choice, not a new one. -->
+              <TextBlock Classes="note"
+                         Text="Opens the collection in Steam, where Subscribe to all fetches them and keeps them updated. Takes the whole collection — the ticks below still choose what joins your load order." />
+            </StackPanel>
+          </RadioButton>
+
+          <RadioButton Grid.Column="2" Classes="card" GroupName="importRoute"
+                       IsChecked="{Binding IsSteamCmdRoute, Mode=TwoWay}">
+            <StackPanel Spacing="1">
+              <TextBlock Text="Download via SteamCMD" Classes="pri" />
+              <TextBlock Classes="note"
+                         Text="No account and no subscription, and it works with Steam closed. Mods land in your Mods folder unmanaged, so only RimManager tracks their updates." />
+            </StackPanel>
+          </RadioButton>
+        </Grid>
+      </StackPanel>
+
+      <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+        <Grid ColumnDefinitions="*,Auto,12,Auto,12,Auto,12,Auto">
+          <TextBlock Grid.Column="0" Text="WHAT RIMMANAGER FOUND" Classes="micro"
+                     VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Classes="small ok" VerticalAlignment="Center"
+                     Text="{Binding Collection.PresentCount, StringFormat='{}{0} present'}" />
+          <TextBlock Grid.Column="3" Classes="small warn" VerticalAlignment="Center"
+                     Text="{Binding Collection.ToDownloadCount, StringFormat='{}{0} to download'}" />
+          <TextBlock Grid.Column="5" Classes="small bad" VerticalAlignment="Center"
+                     Text="{Binding Collection.UnavailableCount, StringFormat='{}{0} unavailable'}" />
+          <TextBlock Grid.Column="7" Classes="small ter" VerticalAlignment="Center"
+                     Text="{Binding Collection.AlreadyActiveCount, StringFormat='{}{0} already active'}" />
+        </Grid>
+      </Border>
+
+      <Border DockPanel.Dock="Top" Classes="dockTableHeader">
+        <Grid ColumnDefinitions="20,4,26,8,*,8,96,8,56">
+          <TextBlock Grid.Column="2" Text="#" Classes="micro" HorizontalAlignment="Right"
+                     VerticalAlignment="Center" />
+          <TextBlock Grid.Column="4" Text="ITEM" Classes="micro" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="6" Text="STATE" Classes="micro" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="8" Text="SIZE" Classes="micro" VerticalAlignment="Center"
+                     HorizontalAlignment="Right" />
+        </Grid>
+      </Border>
+
+      <ListBox Classes="dockRows" AutomationProperties.Name="Collection members"
+                 ItemsSource="{Binding Collection.Members}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:CollectionMemberRowViewModel">
+            <!-- Unavailable rows get a danger-tinted background AND no checkbox: the
+                 tint says "not for you", the missing checkbox makes it true. -->
+            <Border Height="{DynamicResource RmDockTableRowHeight}"
+                    Padding="{DynamicResource RmPanePadding}"
+                    Classes.diffRemove="{Binding IsUnavailable}">
+              <Grid ColumnDefinitions="20,4,26,8,*,8,96,8,56">
+                <ToggleButton Grid.Column="0" Classes="rowCheck"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              IsVisible="{Binding CanSelect}"
+                              AutomationProperties.Name="Include this item" />
+
+                <TextBlock Grid.Column="2" Text="{Binding Number}" Classes="idx" />
+
+                <!-- Grid, not a horizontal StackPanel: infinite width there means a long
+                     Workshop title never ellipsizes and paints over the STATUS column. -->
+                <Grid Grid.Column="4" ColumnDefinitions="*,6,Auto" ClipToBounds="True">
+                  <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="pri"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding Name}"
+                             Classes.ter="{Binding IsAlreadyActive}"
+                             Classes.bad="{Binding IsUnavailable}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Note}" Classes="mono ter"
+                             VerticalAlignment="Center" IsVisible="{Binding HasNote}" />
+                </Grid>
+
+                <TextBlock Grid.Column="6" Text="{Binding StatusText}" Classes="small"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Classes.warn="{Binding IsToDownload}"
+                           Classes.ok="{Binding IsPresent}"
+                           Classes.bad="{Binding IsUnavailable}"
+                           Classes.ter="{Binding IsAlreadyActive}" />
+                <TextBlock Grid.Column="8" Text="{Binding SizeText}" Classes="mono ter"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    </Panel>
+  </DockPanel>
+</Window>

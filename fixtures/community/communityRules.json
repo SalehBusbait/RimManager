@@ -1,0 +1,16 @@
+{
+  "timestamp": 1721779200,
+  "rules": {
+    "vanillaexpanded.vfecore": {
+      "loadAfter": {
+        "brrainz.harmony": { "comment": ["Harmony must initialise first"] }
+      }
+    },
+    "some.patchmod": {
+      "loadBottom": { "value": true, "comment": ["overrides everything, load last"] }
+    },
+    "some.corelib": {
+      "loadTop": { "value": true }
+    }
+  }
+}

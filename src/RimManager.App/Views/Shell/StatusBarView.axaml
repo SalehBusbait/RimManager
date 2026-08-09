@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.StatusBarView"
+             x:DataType="vm:MainWindowViewModel">
+  <!--
+    Status bar, 24px, FIVE FIXED ZONES (1a). They never reorder, so the eye learns
+    positions — that is the whole reason they are laid out as fixed columns with 1px
+    rules between rather than a flowing stack.
+
+      1  state text (flex)   "Ready · applied 12:04 · ModsConfig.xml backed up"
+      2  rules DB            "✓ Community rules 3,412 · synced 2d ago"
+      3  counts              ⚠ 4 · ↑ 2 · ⚡ 5
+      4  drift (S-DRIFT)     "✓ Applied 01:53" / "● Edited — not applied" / …
+      5  snapshot id         "snapshot #47"
+      6  activity            "idle", and the only place background progress appears
+
+    Zone 6 is deliberately the sole progress surface: nothing modal for background
+    work (1a, "Busy / loading").
+  -->
+  <Border Height="{DynamicResource RmStatusBarHeight}"
+          Background="{DynamicResource RmBackgroundSurfaceBrush}"
+          BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+    <Grid ColumnDefinitions="*,1,Auto,1,Auto,1,Auto,1,Auto,1,Auto">
+
+      <!-- 1 · state -->
+      <TextBlock Grid.Column="0" Classes="small sec" VerticalAlignment="Center" Margin="10,0"
+                 Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding StatusText}" />
+
+      <Border Grid.Column="1" Classes="divider" Width="1" Margin="0,4" />
+
+      <!-- 2 · community rules · "✓ Community rules 3,412 · synced 2d ago".
+           Offline (2k) it reads "· cached", loses the tick and drops to tertiary:
+           a ✓ beside a cached number claims the rules were confirmed current. -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5"
+                  VerticalAlignment="Center" Margin="10,0"
+                  ToolTip.Tip="Community load-order rules">
+        <PathIcon Data="{StaticResource RmIconCheck}" Width="9" Height="9"
+                  Foreground="{DynamicResource RmSuccessBrush}"
+                  IsVisible="{Binding HasCommunityRules}" />
+        <TextBlock Classes="small" Text="{Binding RulesStatus}"
+                   Classes.stale="{Binding IsOffline}">
+          <TextBlock.Styles>
+            <Style Selector="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+            </Style>
+            <Style Selector="TextBlock.stale">
+              <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+            </Style>
+          </TextBlock.Styles>
+        </TextBlock>
+      </StackPanel>
+
+      <Border Grid.Column="3" Classes="divider" Width="1" Margin="0,4" />
+
+      <!-- 3 · counts: warnings, updates, conflicts — INTERACTIVE (v2): each count
+           has a live home and the numbers now go there. The ⚡ follows the row
+           grammar's tone rule: warn only while override content is contested;
+           an all-harmony install reads neutral, because nothing there loses. -->
+      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6"
+                  VerticalAlignment="Center" Margin="10,0">
+        <Button Classes="affordance" Padding="2,0" ToolTip.Tip="Open the Warnings tab"
+                AutomationProperties.Name="Open the Warnings tab"
+                Command="{Binding OpenDockTabCommand}" CommandParameter="0">
+          <StackPanel Orientation="Horizontal" Spacing="3">
+            <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9"
+                      Classes.warnOn="{Binding WarningsPanel.HasAny}" />
+            <TextBlock Classes="mono ter" Text="{Binding WarningCount}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="affordance" Padding="2,0" ToolTip.Tip="Open the Updates tab"
+                AutomationProperties.Name="Open the Updates tab"
+                Command="{Binding OpenDockTabCommand}" CommandParameter="1">
+          <StackPanel Orientation="Horizontal" Spacing="3">
+            <PathIcon Data="{StaticResource RmIconUpdate}" Width="9" Height="9"
+                      Classes.accentOn="{Binding Updates.HasUpdates}" />
+            <TextBlock Classes="mono ter" Text="{Binding Updates.UpdateCount}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="affordance" Padding="2,0"
+                ToolTip.Tip="Re-scan conflicts and summarise"
+                AutomationProperties.Name="Re-scan conflicts"
+                Command="{Binding AnalyzeConflictsCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="3">
+            <PathIcon Data="{StaticResource RmIconConflict}" Width="9" Height="9"
+                      Classes.warnOn="{Binding HasOverrideConflicts}" />
+            <TextBlock Classes="mono ter" Text="{Binding Conflicts.ConflictCount}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <Border Grid.Column="5" Classes="divider" Width="1" Margin="0,4" />
+
+      <!-- 4 · DRIFT (S-DRIFT, built at last): four states, no counts, glyph + copy —
+           the tick with its applied TIME when in sync (the timestamp is the
+           information), accent dot for edited, warn triangle for changed outside,
+           hollow ring for never applied. A click target in exactly the two states
+           with a next step: edited applies, changed-outside brings the review strip
+           back. IsHitTestVisible, not IsEnabled: the other two states are FACTS, and
+           a disabled-grey fact would read as a broken control. -->
+      <Button Grid.Column="6" Classes="affordance" Padding="4,0" Margin="6,0"
+              Command="{Binding DriftZoneActionCommand}"
+              IsHitTestVisible="{Binding IsDriftActionable}"
+              ToolTip.Tip="{Binding DriftZoneTip}"
+              AutomationProperties.Name="Load-order drift">
+        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+          <PathIcon Data="{StaticResource RmIconCheck}" Width="9" Height="9"
+                    Foreground="{DynamicResource RmTextTertiaryBrush}"
+                    VerticalAlignment="Center" IsVisible="{Binding IsDriftInSync}" />
+          <PathIcon Data="{StaticResource RmIconDot}" Width="8" Height="8"
+                    Foreground="{DynamicResource RmAccentTextBrush}"
+                    VerticalAlignment="Center" IsVisible="{Binding IsDriftNotApplied}" />
+          <PathIcon Data="{StaticResource RmIconWarning}" Width="9" Height="9"
+                    Foreground="{DynamicResource RmWarningBrush}"
+                    VerticalAlignment="Center" IsVisible="{Binding IsDriftOutside}" />
+          <PathIcon Data="{StaticResource RmIconDotHollow}" Width="9" Height="9"
+                    Foreground="{DynamicResource RmTextTertiaryBrush}"
+                    VerticalAlignment="Center" IsVisible="{Binding IsDriftNeverApplied}" />
+          <TextBlock Classes="small" VerticalAlignment="Center"
+                     Text="{Binding DriftZoneText}"
+                     Classes.ter="{Binding IsDriftInSync}"
+                     Classes.warn="{Binding IsDriftOutside}" />
+        </StackPanel>
+      </Button>
+
+      <Border Grid.Column="7" Classes="divider" Width="1" Margin="0,4" />
+
+      <!-- 5 · snapshot id -->
+      <TextBlock Grid.Column="8" Classes="mono ter" VerticalAlignment="Center" Margin="10,0"
+                 Text="{Binding SnapshotLabel}" ToolTip.Tip="Most recent snapshot" />
+
+      <Border Grid.Column="9" Classes="divider" Width="1" Margin="0,4" />
+
+      <!-- 6 · activity — the ONLY place background progress shows -->
+      <StackPanel Grid.Column="10" Orientation="Horizontal" Spacing="6"
+                  VerticalAlignment="Center" Margin="10,0">
+        <!-- HasActivity, not IsBusy. IsBusy is the SCAN's re-entrancy guard (Import
+             reads it too), so the bar appeared for the scan and for nothing else —
+             not for the update check, the rules sync or the conflict scan, which is
+             the slowest thing here. Both halves of this zone are driven by the same
+             claim now, so they cannot disagree about whether work is running. -->
+        <!-- MinWidth/MinHeight 0. Width and Height do NOT win on their own: the final
+             size is Width clamped BY MinWidth, so Fluent's stock minimum (~200x4,
+             sized for a dialog) beat the 60x2 asked for here and zone 5 grew to about
+             three times its width, taking the space from zone 1. Fourth Fluent control
+             whose own minimums we have had to switch off, after CheckBox, ToggleSwitch
+             and the UI-scale Slider. -->
+        <ProgressBar Width="60" Height="2" MinWidth="0" MinHeight="0"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding HasActivity}" VerticalAlignment="Center" />
+        <TextBlock Classes="small ter" Text="{Binding ActivityText}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

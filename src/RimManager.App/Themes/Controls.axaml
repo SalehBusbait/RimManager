@@ -1,0 +1,2215 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Control styles built ONLY on tokens and metrics — no literal colour, no literal
+    height. Everything here is class-scoped (Button.accent, TextBlock.mono, ...) so
+    it composes with FluentTheme instead of fighting it; the one exception is the
+    Window-level font/size default, which relies on property inheritance.
+
+    Type scale roles (README §Type scale):
+      .micro  9 / 700  caps column headers and micro labels
+      .mono  10 / 400  packageId, index, version, content flags
+      .small 11 / 400  chips, footers, status bar, hints
+      (default)  12    body: mod names, menu items, buttons
+      .title 14 / 600  mod-info title, dialog section headings
+      .page  19 / 600  first-run and dialog page titles only
+
+
+    ============================ FLUENT MINIMUMS ============================
+
+    Width and Height do NOT win on their own. The final size is the declared value
+    CLAMPED BY MinWidth/MinHeight, so a template minimum larger than what you asked
+    for wins silently — nothing throws, nothing logs, and the control is simply the
+    wrong size until someone looks at the window. This has cost four separate bugs
+    (CheckBox, ToggleSwitch, the UI-scale Slider, and the status bar's progress bar,
+    which rendered 200x4 where it declared 60x2 and took zone 1's space).
+
+    MEASURED from the running app rather than guessed — every control type in the
+    main window, all five dock tabs and all seven settings pages:
+
+      ProgressBar    MinWidth 200   MinHeight 4     <- the expensive one
+      Slider         MinWidth 240   MinHeight 0
+      ComboBox       MinWidth 190   MinHeight 32
+      TextBox        MinWidth  64   MinHeight 0
+      Border         MinWidth  64   MinHeight 0
+      Button         MinWidth  32   MinHeight 0
+      ScrollBar      MinWidth  16   MinHeight 16
+      RepeatButton   MinWidth  16   MinHeight 0
+      Popup          MinWidth  36   MinHeight 0
+      GridSplitter   MinWidth   6   MinHeight 6
+      MenuItem       MinWidth   0   MinHeight 24
+      Thumb          MinWidth   0   MinHeight 16
+
+    Declaring a Width or Height BELOW the figure above does nothing unless you also
+    set MinWidth/MinHeight to 0. Button.icon and Button.affordance already reset both
+    (the 14px row chevron depends on it); Button.quiet resets only MinHeight, which is
+    harmless because a text button is never narrower than 32px.
+
+    FluentMinimumTests guards the declarations this table makes load-bearing.
+  -->
+
+  <!-- ======================= document-level defaults ====================== -->
+  <Style Selector="Window">
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontUi}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeBody}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundCanvasBrush}" />
+  </Style>
+
+  <!-- ============================ text roles ============================= -->
+  <!-- Deliberately NOT a bare `TextBlock` selector: that also captures the
+       TextBlocks inside Fluent control templates and would stomp their hover and
+       disabled foregrounds. Roles are opt-in. -->
+  <Style Selector="TextBlock.pri">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.sec">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.ter">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMono}" />
+  </Style>
+  <Style Selector="TextBlock.micro">
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMicro}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.small">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+  </Style>
+
+  <!--
+    The explanatory line under a setting (2g): the sentence that says WHY a default is
+    what it is. Wrapped, tertiary, and held to a readable measure.
+
+    HorizontalAlignment MUST be Left, and that is the whole reason this is a class
+    rather than three attributes per site. A Stretch-aligned element narrowed by
+    MaxWidth is CENTRED by the layout system — so every note on every Settings page
+    rendered as a floating block half-way across the pane, nowhere near the control it
+    explains. It built clean, tested green and launched fine; it took a screenshot.
+  -->
+  <Style Selector="TextBlock.note">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="MaxWidth" Value="460" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.page">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizePage}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+
+  <!-- Status text roles. Colour is never the only signal — these always pair
+       with the ✓ / ⚠ / ✕ icon geometries (accessibility, guide §10). -->
+  <Style Selector="TextBlock.ok">
+    <Setter Property="Foreground" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="TextBlock.warn">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="TextBlock.bad">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <!-- The dropped edge in a cycle chain (2a). Struck AND danger-coloured: the
+       strike says "not honoured", the colour says "this is the one that gave". -->
+  <Style Selector="TextBlock.struck">
+    <Setter Property="TextDecorations" Value="Strikethrough" />
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="TextBlock.link">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <!-- The accent TONE without the link's hand cursor: for status words that read
+       accent but go nowhere (one link style means links look like links, and only
+       links do — the v2 pass). -->
+  <Style Selector="TextBlock.acc">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+
+  <!-- Core, DLC and pinned mods render at 600 — they anchor the order (1f). -->
+  <Style Selector="TextBlock.anchor">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Row column roles: the right-aligned index. TextBlock.flags went with the
+       CDPTSL column in N1 (NEXT_PLAN §0a); mod info states the same facts as words. -->
+  <Style Selector="TextBlock.idx">
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMono}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ============================== buttons ============================== -->
+  <!-- Toolbar control: 24px, 3px radius, 1px strong border, raised surface. -->
+  <Style Selector="Button.toolbar">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="9,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.toolbar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+
+  <!-- The ONE accent-filled control in the main window: Apply to game. -->
+  <Style Selector="Button.accent">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="11,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+
+  <!--
+    The solid buttons had NO hover state — Apply to game included, the one accent-filled
+    control in the window. Painting the ContentPresenter above overrides Fluent's own
+    :pointerover, so it has to be restated here or the button is simply inert under the
+    pointer. Background only; the label never shifts (README, Hover). Declared BEFORE
+    :disabled so a disabled button cannot light up.
+  -->
+  <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+  <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+
+  <!-- A disabled accent button must not still read as the primary action. Fluent
+       dims its own template, but Button.accent paints the ContentPresenter directly,
+       so the accent fill survives :disabled unless it is overridden here. -->
+  <Style Selector="Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextDisabledBrush}" />
+  </Style>
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextDisabledBrush}" />
+  </Style>
+
+  <!-- Danger-filled primary: destructive confirms only, labelled with the verb. -->
+  <Style Selector="Button.danger">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="11,0" />
+    <!-- Fluent centres neither axis by default, and with a FIXED Height and zero
+         vertical padding the label sat high in the fill. Every other sized button in
+         this file states both; this one did not, which is why its text alone looked
+         off-centre. -->
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmDangerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmDangerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+  <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmDangerHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+  <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmDangerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+
+  <!-- Quiet: pane footers, dock rows, mod-info actions. 22px, no fill. -->
+  <Style Selector="Button.quiet">
+    <Setter Property="Height" Value="{DynamicResource RmQuietButtonHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <!-- A disabled quiet button KEEPS ITS CHROME. Fluent's own :disabled rules drop the
+       ContentPresenter's border to a near-invisible tint, which on top of a card's
+       elevated fill leaves the control reading as a run of grey prose — "Manage repos…"
+       stopped looking like a button at all. Disabledness is carried by the FOREGROUND;
+       the border stays, for the same reason 2h keeps a disabled menu item visible with
+       its shortcut rather than hiding it. Both the control and the template part are
+       set, so this does not depend on which of the two Fluent happens to target. -->
+  <Style Selector="Button.quiet:disabled">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="Button.quiet:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+
+  <!-- ================= the notice strip family (T5, S-STRIPS) =================
+       ONE component: h32 band, identity icon in the tone colour, headline 12/600,
+       detail 11/text-2 inline (the tooltip carries the long sentences), quiet
+       actions right, dismiss ×. Tone is a class on the band; the icon picks its
+       foreground FROM the band's tone so a strip cannot wear one tone's tint with
+       another's icon. The action weighting is the design's: the primary reads
+       accent at weight 600, and an action that knowingly discards demotes to
+       text-3 (brightening on hover — the affordance rule, #11). -->
+  <Style Selector="Border.strip">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style Selector="Border.strip.info">
+    <Setter Property="Background" Value="{DynamicResource RmInfoTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmInfoBrush}" />
+  </Style>
+  <Style Selector="Border.strip.warn">
+    <Setter Property="Background" Value="{DynamicResource RmWarningTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="Border.strip.bad">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <!-- ok exists for the Settings band (S-SETBAND), not the notice strips: no NOTICE
+       is ever good news, while a settings RESULT often is. -->
+  <Style Selector="Border.strip.ok">
+    <Setter Property="Background" Value="{DynamicResource RmSuccessTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="Border.strip.info PathIcon.stripIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmInfoBrush}" />
+  </Style>
+  <Style Selector="Border.strip.warn PathIcon.stripIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="Border.strip.bad PathIcon.stripIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="Border.strip.ok PathIcon.stripIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="Button.stripPrimary">
+    <Setter Property="Height" Value="22" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.stripPrimary /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+  <Style Selector="Button.stripPrimary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+
+  <!-- `.linkAction` is RETIRED (T6, systemic pass): one link style exists for real
+       links, and DOERS are quiet buttons — a control that performs an action wears
+       button chrome, so the eye can tell "go somewhere" from "do something". Its
+       history is worth one line: it began as a styled TextBlock that was unfocusable
+       and, for four phases, wired to nothing at all. -->
+
+  <!--
+    `Button.link` is the NAVIGATOR half of that same rule, not a walking-back of it
+    (O23, owner's call). T6's line is "go somewhere" versus "do something", and it
+    retired `.linkAction` because five DOERS were wearing link clothes. This is for
+    the other case: a control that opens more of the content already on screen and
+    changes nothing. "Read more" is the whole of its membership today.
+
+    The bar was "it must open a reference window or navigate, never mutate".
+
+    O24 widened it, owner's call, and the reason is density rather than semantics: the
+    Warnings table's FIX column carries one action per row, and at 22 rows that was a
+    column of 22 bordered boxes shouting over the sentences beside them. "Fix all" and
+    "Review" are links there — and "Fix all" genuinely mutates, so this IS an exception
+    to the sentence above rather than a case it already allowed.
+
+    The line now: chrome comes off inside a DENSE TABLE, where the repetition is the
+    problem; a standalone verb keeps its button. What never comes off is the focusability
+    — see below.
+
+    A Button, deliberately, and not the `TextBlock.link` above — that is what the
+    retired class was, and being a TextBlock is precisely why it was unfocusable and
+    unreachable from the keyboard. The chrome is what comes off; the focusability,
+    the automation name and the command do not.
+  -->
+  <Style Selector="Button.link">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <!-- On the PRESENTER as well: Fluent sets Background and Foreground there, and a
+       value on an element beats anything inherited from its parent. Both are set for
+       the same reason Button.quiet:disabled sets both — so this does not depend on
+       which of the two Fluent happens to target. -->
+  <Style Selector="Button.link /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+  <!-- Brightens on approach; never revealed by it (#11). The underline appears on
+       hover rather than at rest because accent-on-surface already reads as a link in
+       a UI where accent text is otherwise reserved for state words — and a permanent
+       rule under a 10px label is heavier than this pane wants. -->
+  <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+  </Style>
+  <Style Selector="Button.link:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- Icon-only: never below 24x24 (guide §10 minimum hit target). Affordances
+       are ALWAYS rendered at text.tertiary and only brighten on hover — never
+       revealed by it, which is unusable with a trackpad at 20px rows. -->
+  <Style Selector="Button.icon">
+    <Setter Property="Width" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.icon:disabled">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Opacity" Value="0.3" />
+  </Style>
+
+  <!-- Row affordance (⋮, ★): borderless, tertiary, brightens on hover only. -->
+  <Style Selector="Button.affordance">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="Button.affordance:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="Button.affordance /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- The mod-info favourite star (1a). Tertiary until it is set, then the favourite
+       hue — a bound state rather than a converter, so it survives a theme flip.
+       Affordance supplies the rest: transparent, no border, brightens on hover, never
+       revealed.
+
+       O14: it used RmWarningBrush, which is the colour-meaning overload E2 was filed
+       against — gold means "there is a warning" everywhere else in this app, and a
+       favourited mod is not a problem. RmFavouriteBrush is its own token, generated
+       per theme at a hue no palette entry uses (see generate-tokens.py). -->
+  <Style Selector="ToggleButton.star /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.star">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <!--
+    On the PRESENTER, not on the ToggleButton — the same trap ToggleButton.chip
+    documents below. Fluent's :checked sets the presenter's Foreground to the colour
+    meant for an accent-FILLED button, and a value set on an element beats anything
+    inherited from its parent however specific that parent's style is.
+
+    This was wrong from the day the star was wired: the setters were on the
+    ToggleButton, so the "warning-tinted when set" the comment above promised has
+    never once rendered. Found while giving the star O14's token — the token was
+    fine, the delivery was not, which is why the pill lit up and the star did not.
+  -->
+  <Style Selector="ToggleButton.star:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource RmFavouriteBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.star:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.star:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource RmFavouriteBrush}" />
+  </Style>
+
+  <!-- O14 · the favourite as a pill, beside the tag chips it sits with. Chip shape
+       (6,1 padding, radius 3) so the row reads as one vocabulary, but a filled
+       background of its own rather than the card's, because a favourite is not a tag
+       and that has to survive a glance. The star is the second channel: hue alone
+       would be one more colour among six. -->
+  <Style Selector="Border.favPill">
+    <Setter Property="Background" Value="{DynamicResource RmFavouriteBgBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmFavouriteBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="6,1" />
+  </Style>
+  <Style Selector="Border.favPill PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmFavouriteBrush}" />
+  </Style>
+  <Style Selector="Border.favPill TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmFavouriteBrush}" />
+  </Style>
+
+  <!-- ========================= scrollbars (UI-9) ========================= -->
+  <!--
+    Thin, overlay, accent on approach. Measured before touching anything, because this
+    file's own minimums table exists for exactly this control:
+
+      ScrollBar   MinWidth 16  MinHeight 16   <- Width/Height alone would do NOTHING
+      thumb       #858585                      <- Fluent's grey, in no token we own
+      arrows      PART_LineUpButton/LineDownButton, 16x16 at each end
+
+    One thing did NOT need changing: it already overlays. The ScrollViewer and its
+    ScrollContentPresenter measured the same width, so the bar has never stolen room
+    from the list — AllowAutoHide is already true, and Fluent's fade still runs.
+
+    The arrows go. They are a 16px target for a one-row step on a list of 540, and
+    every platform this ships on has a wheel; keeping them costs the thumb a third of
+    its travel at both ends.
+  -->
+  <Style Selector="ScrollBar">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="ScrollBar:vertical">
+    <Setter Property="Width" Value="{DynamicResource RmScrollBarThickness}" />
+  </Style>
+  <Style Selector="ScrollBar:horizontal">
+    <Setter Property="Height" Value="{DynamicResource RmScrollBarThickness}" />
+  </Style>
+
+  <!-- The four line buttons, by name: a ScrollBar template has an up/down pair and a
+       left/right pair, and only one orientation is ever realized. -->
+  <Style Selector="ScrollBar /template/ RepeatButton#PART_LineUpButton,
+                   ScrollBar /template/ RepeatButton#PART_LineDownButton,
+                   ScrollBar /template/ RepeatButton#PART_LineLeftButton,
+                   ScrollBar /template/ RepeatButton#PART_LineRightButton">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
+  <!-- The track rectangle Fluent draws behind everything. Transparent, so the bar is
+       the thumb and nothing else until the pointer arrives. -->
+  <Style Selector="ScrollBar /template/ Rectangle#TrackRect">
+    <Setter Property="Fill" Value="Transparent" />
+    <Setter Property="Stroke" Value="Transparent" />
+  </Style>
+
+  <!--
+    The thumb: a 4px bar in the 10px lane, squared off at 3px like every other radius.
+
+    Sized with MaxWidth/MaxHeight rather than Width/Height, and that is not a
+    preference. Measured: setting Background on this selector WORKS and setting a size
+    on it does NOT — the thumb stayed 16px wide inside a 10px bar. Fluent's template
+    gives the thumb its size as a LOCAL value, and a local value outranks every style
+    setter, which is the trap this codebase has now paid for five times. MaxWidth is a
+    different property, so it clamps whatever the template asked for.
+  -->
+  <Style Selector="ScrollBar:vertical /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource RmScrollThumbBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusScrollThumb}" />
+    <Setter Property="MaxWidth" Value="{DynamicResource RmScrollThumbThickness}" />
+    <Setter Property="MinHeight" Value="24" />
+  </Style>
+  <Style Selector="ScrollBar:horizontal /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource RmScrollThumbBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusScrollThumb}" />
+    <Setter Property="MaxHeight" Value="{DynamicResource RmScrollThumbThickness}" />
+    <Setter Property="MinWidth" Value="24" />
+  </Style>
+
+  <!-- Approaching the bar fills the lane and tints it: the affordance appears where the
+       pointer already is, rather than the bar being loud all the time (#11 — hover
+       brightens, it never reveals). Dragging keeps it lit. -->
+  <Style Selector="ScrollBar:vertical:pointerover /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="MaxWidth" Value="{DynamicResource RmScrollBarThickness}" />
+  </Style>
+  <Style Selector="ScrollBar:horizontal:pointerover /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="MaxHeight" Value="{DynamicResource RmScrollBarThickness}" />
+  </Style>
+  <Style Selector="ScrollBar /template/ Thumb:pressed">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- ==================== inactive pane sort headings ==================== -->
+  <!--
+    A clickable column heading (N1 · UI-6.1). It has to look EXACTLY like the active
+    pane's legend — same 9px bold mono at text.tertiary — because the two headers sit
+    side by side and a heading that reads as a button in one pane and as a label in the
+    other says the panes work differently. What says it is clickable is the hover
+    brighten and the sort arrow, not a border.
+
+    MinWidth 0 is load-bearing, not tidiness. Fluent's Button carries MinWidth 32
+    (measured, see the table at the top of this file) and the SRC heading sits in a
+    FOURTEEN pixel column — without this it renders 32px wide and paints over NAME,
+    silently, which is precisely the failure that table was written to stop.
+
+    Padding 0 for the same reason the active legend has none: the heading has to start
+    at the exact x its column's data starts at, or the legend is 4px off its own rows.
+  -->
+  <Style Selector="Button.columnSort">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMicro}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.columnSort:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <!-- Fluent paints its hover fill on the ContentPresenter, and a value set on an
+       element beats anything inherited from its parent — so clearing it on the Button
+       alone leaves a grey block behind a heading that is meant to be part of the band. -->
+  <Style Selector="Button.columnSort /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- ========================== filter chips ============================= -->
+  <!-- Toggle; active = accent border + bg.selected. -->
+  <Style Selector="ToggleButton.chip">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ToggleButton.chip:checked">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <!-- Declared BEFORE the checked rule: equal specificity means the LATER style
+       wins, so a general rule after a state rule silently cancels it. -->
+  <Style Selector="ToggleButton.chip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+  </Style>
+
+  <!-- The Foreground has to be set HERE, on the presenter, not on the ToggleButton.
+       Fluent's checked state sets the presenter's foreground to the colour meant for
+       an accent-FILLED button — near-white — and a value set on the element beats
+       anything inherited from its parent however specific that parent's style is.
+       Our chip is pale bg.selected, not accent fill, so in light the label was white
+       on near-white and simply vanished. Same shape as Button.accent having no hover
+       in R7g, and the fix is the same one. -->
+  <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+
+  <!-- The chip as a Button, for chips whose click opens a flyout rather than toggling
+       state (Tags ▾, N4g). A ToggleButton there lights on the very click that opens
+       the menu; here `on` is a bound class driven by the filter itself. The presenter
+       rules mirror the ToggleButton ones above, for the reason that comment records. -->
+  <Style Selector="Button.chip">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.chip.on">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button.chip.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+
+  <!-- The dock severity chips' pill shape (2a): full-round, with the markup adding a
+       ✓ on the active one. A class on the chip family, not a new control. -->
+  <Style Selector="ToggleButton.chip.round, Button.chip.round">
+    <Setter Property="CornerRadius" Value="99" />
+  </Style>
+
+  <!-- The count INSIDE a filter chip (2a): a mini tinted badge, not bare text — the
+       design boxes its chip numbers, and the fill carries the severity so a red 48
+       reads as "blocking" before the label does. Neutral by default; warn/bad are
+       bound by the chip. -->
+  <Style Selector="Border.countBadge">
+    <Setter Property="Height" Value="14" />
+    <Setter Property="MinWidth" Value="14" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+  </Style>
+  <Style Selector="Border.countBadge > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMicro}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.countBadge.warn">
+    <Setter Property="Background" Value="{DynamicResource RmWarningTintBrush}" />
+  </Style>
+  <Style Selector="Border.countBadge.warn > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="Border.countBadge.bad">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+  </Style>
+  <Style Selector="Border.countBadge.bad > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+
+  <!-- A list row that ACTS (T6/2a): the warning detail's affected rows reveal on
+       click, so they are Buttons — transparent until hovered, chrome-free, content
+       stretched so the whole row is the target. -->
+  <Style Selector="Button.listRow">
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+  </Style>
+  <Style Selector="Button.listRow /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+
+  <!-- A theme-gallery card (T4, S-GALLERY): a Button so the card is one keyboard
+       stop with one action, like the chip above. Selection reads as an accent
+       border plus the selected tint — on the CARD, not the presenter, because the
+       card's content is a composite (preview + badge + labels), and the presenter
+       repaint trick exists for text-only chips. Fluent's own state colours are
+       flattened to transparent so the card's chrome is the only signal. -->
+  <Style Selector="Button.themeCard">
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusCard}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSurfaceBrush}" />
+  </Style>
+  <Style Selector="Button.themeCard /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.themeCard:pointerover:not(.on)">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+  <Style Selector="Button.themeCard.on">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedIdleBrush}" />
+  </Style>
+
+  <!-- The Match any / Match all pair in the Tags ▾ flyout: text buttons where the
+       ACTIVE mode reads accent and the other tertiary, brightening on hover — the
+       affordance rule (#11), applied to a mode switch. `:not(.on)` rather than rule
+       order, so a block moved later cannot silently re-dim the active one. -->
+  <Style Selector="Button.tagMode">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.tagMode /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.tagMode:pointerover:not(.on)">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button.tagMode.on">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+
+  <!-- ============================== inputs =============================== -->
+  <!-- The search field is INSET (bg.surface) unlike the raised buttons — that
+       contrast is what tells you it takes typing rather than a click. -->
+  <Style Selector="TextBox.inset">
+    <Setter Property="Height" Value="{DynamicResource RmToolbarControlHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="7,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <!-- An invalid path field gets a danger border AND a tinted background (1c) —
+       the message alone is too easy to miss. -->
+  <Style Selector="TextBox.invalid">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+  </Style>
+
+  <!-- ============================ containers ============================= -->
+  <Style Selector="Border.pane">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Border.paneHeader">
+    <Setter Property="Height" Value="{DynamicResource RmPaneHeaderHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource RmPanePadding}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style Selector="Border.paneFooter">
+    <Setter Property="Height" Value="{DynamicResource RmPaneFooterHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource RmPanePadding}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+  </Style>
+  <Style Selector="Border.columnHeader">
+    <Setter Property="Height" Value="{DynamicResource RmColumnHeaderHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource RmPanePadding}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style Selector="Border.card">
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusCard}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+  </Style>
+  <Style Selector="Border.divider">
+    <Setter Property="Background" Value="{DynamicResource RmBorderSubtleBrush}" />
+  </Style>
+
+  <!-- 14px square, 2px radius, one 9px icon. Icon AND tint, never tint alone. -->
+  <Style Selector="Border.srcBadge">
+    <Setter Property="Width" Value="{DynamicResource RmSourceBadgeSize}" />
+    <Setter Property="Height" Value="{DynamicResource RmSourceBadgeSize}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusBadge}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+  </Style>
+  <!-- One tint pair per source, selected by a bound class. Keeping the brushes as
+       DynamicResource here (rather than resolving them in a converter) is what lets
+       badges re-colour instantly when the theme flips. -->
+  <Style Selector="Border.srcBadge.srcCore">
+    <Setter Property="Background" Value="{DynamicResource RmSrcCoreBgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcCore PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcCoreFgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcDlc">
+    <Setter Property="Background" Value="{DynamicResource RmSrcDlcBgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcDlc PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcDlcFgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcWorkshop">
+    <Setter Property="Background" Value="{DynamicResource RmSrcWorkshopBgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcWorkshop PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcWorkshopFgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcLocal">
+    <Setter Property="Background" Value="{DynamicResource RmSrcLocalBgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcLocal PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcLocalFgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcGit">
+    <Setter Property="Background" Value="{DynamicResource RmSrcGitBgBrush}" />
+  </Style>
+  <Style Selector="Border.srcBadge.srcGit PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcGitFgBrush}" />
+  </Style>
+  <!-- srcBadge.srcPinned went with the version-pinning vault (O13). Its two tokens
+       (RmSrcPinnedFg/BgBrush) are still in the generated dictionaries and come out with
+       the next tokens.css regeneration — hand-editing the .axaml outputs is forbidden. -->
+  <!-- Dock tab count pill: 10px mono, 7px radius. -->
+  <Style Selector="Border.countPill">
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="5,1" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ============================== lists ================================ -->
+  <!-- Selection is bg.selected ALONE since O6; the unfocused pane
+       uses bg.selected-idle with the same edge at half strength, so it is always
+       obvious which list the keyboard is driving. Hover changes BACKGROUND ONLY —
+       text colour never shifts. -->
+  <Style Selector="ListBox.rows">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.rows ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="ListBox.rows ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <!-- The 2px accent left edge is GONE (O6, owner's call). Selection is the background
+       alone now. The focused-pane signal survives in weaker form and deliberately: the
+       rule below still swaps to bg.selected-idle when the list loses focus, so which
+       list the keyboard drives is still readable — just from the fill rather than from
+       a stripe. -->
+  <Style Selector="ListBox.rows ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+  <Style Selector="ListBox.rows:not(:focus-within) ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedIdleBrush}" />
+  </Style>
+
+  <!-- Zebra striping, off by default. Banding sits UNDER hover and selection: both
+       are declared after this, so a striped row still reads as hovered. -->
+  <!-- :not(:selected):not(:pointerover) is doing real work. This rule is declared
+       AFTER the hover and selection rules and targets the same property on the same
+       element, so without the exclusions the band wins on every banded row and the
+       selection highlight vanishes on half the list. It was wrong before the band
+       was visible too — the override just happened to be the colour of an unselected
+       row, so nobody could see the selection being eaten.
+
+       Excluded rather than reordered: order-independent, so moving these blocks
+       around later cannot quietly reintroduce it. -->
+  <Style Selector="ListBox.rows.zebra ListBoxItem:nth-child(2n):not(:selected):not(:pointerover) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundZebraBrush}" />
+  </Style>
+
+  <!-- ============================ drag (3a) ============================== -->
+  <!-- Source rows dim but keep their place: the list must never reflow under the
+       pointer mid-drag. -->
+  <Style Selector="Border.row">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.row.dragSource">
+    <Setter Property="Opacity" Value="{DynamicResource RmDragSourceOpacity}" />
+  </Style>
+
+  <!-- The drag ghost (3a §1): what is in flight, following the pointer. 94% opacity
+       so the insertion line stays readable through it, and a slight rotation so it
+       reads as "picked up" rather than as another row that has somehow escaped. -->
+  <Style Selector="Border.dragGhost">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="Opacity" Value="{DynamicResource RmDragGhostOpacity}" />
+    <Setter Property="Padding" Value="8,3" />
+    <!-- No BoxShadow: it takes a Color, and a literal one here would be hex outside
+         the two theme dictionaries (#1). The accent border against bg.elevated
+         already reads as lifted. -->
+  </Style>
+
+  <!-- N6 · selection-relative conflict highlights, MO2's interaction: while a mod is
+       selected, red tints the rows whose contested content the selection discards,
+       green the rows that discard the selection's. Colour names THIS row's fate —
+       the same red-dies / green-survives language as the badge marks. Declared
+       BEFORE justMoved: equal specificity means the later rule wins, and the 1.2s
+       post-drop tint is feedback about an action just taken, which outranks a
+       standing relationship. -->
+  <Style Selector="Border.row.conflictLoss">
+    <Setter Property="Background" Value="{DynamicResource RmDiffRemovedBrush}" />
+  </Style>
+  <Style Selector="Border.row.conflictWin">
+    <Setter Property="Background" Value="{DynamicResource RmDiffAddedBrush}" />
+  </Style>
+  <!-- v2 §4A.2: shares a Harmony target with the selection — the DASHED right edge
+       in the template carries the second channel; dashed because linked-not-ranked,
+       and no winner is named anywhere in this state. -->
+  <Style Selector="Border.row.harmonyShared">
+    <Setter Property="Background" Value="{DynamicResource RmHarmonyTintBrush}" />
+  </Style>
+
+  <!-- Moved rows stay tinted for 1.2s, then fade. No toast — the status bar
+       carries the record (3a §4). -->
+  <Style Selector="Border.row.justMoved">
+    <Setter Property="Background" Value="{DynamicResource RmAccentTintBrush}" />
+  </Style>
+
+  <!-- ============================== dock ================================= -->
+  <!-- The 26px strip is the tab selector (guide §4: "content lives outside the
+       strip so the strip can stay 26px when closed"), so the TabControl's own
+       header row is hidden. Leaving it visible gives two competing tab surfaces —
+       and the built-in one renders at Fluent's full size, dwarfing the strip. -->
+  <!-- The header row lives INSIDE the TabControl's template, so the selector needs
+       /template/ — targeting it as a child silently matches nothing, which is how
+       the duplicate 40px tab row survived a "fix". -->
+  <Style Selector="TabControl.dockBody /template/ ItemsPresenter#PART_ItemsPresenter">
+    <Setter Property="IsVisible" Value="False" />
+    <Setter Property="Height" Value="0" />
+  </Style>
+  <Style Selector="TabControl.dockBody">
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <!-- Strip tab. README: "The active tab gets a 2px accent top border and
+       bg.surface fill" — the strip sits on bg.surface-alt, so the active tab reads
+       as the panel below it coming up through the strip. -->
+  <Style Selector="Button.dockTab">
+    <Setter Property="Height" Value="{DynamicResource RmDockStripHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="9,0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="BorderThickness" Value="0,2,0,0" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.dockTab /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.dockTab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="Button.dockTab.active">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="Button.dockTab.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0,2,0,0" />
+  </Style>
+
+  <!-- Master-table column header, 22px with 9px mono caps labels. Same band as the
+       detail panel's header so the two read as one rule across the dock. -->
+  <Style Selector="Border.dockTableHeader">
+    <Setter Property="Height" Value="{DynamicResource RmDockTableHeaderHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource RmPanePadding}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+
+  <!-- Group header row, 22px: a coloured caps label, a count, and a bulk action
+       right-aligned. Warnings' six ordered categories are these. -->
+  <Style Selector="Border.dockGroupHeader">
+    <Setter Property="Height" Value="{DynamicResource RmDockTableHeaderHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource RmPanePadding}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,1" />
+  </Style>
+
+  <!-- Dock body rows are 24px and do NOT follow the density switch: density is a
+       property of the mod lists, where 400 rows are in play. -->
+  <Style Selector="ListBox.dockRows">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.dockRows ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="ListBox.dockRows ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <!-- Selection is bg.selected + a 2px accent left edge. This USED to be "exactly as the
+       mod lists", and deliberately is not any more: O6 removed the edge from the mod
+       rows on the owner's call, and that call was made about those rows. The dock keeps
+       it pending the same decision — a dock row is a line in a report, where the edge is
+       the only thing marking which one the detail pane is describing, whereas a mod row
+       has an index, a name and a whole pane of context. Flagged rather than assumed. -->
+  <Style Selector="ListBox.dockRows ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderThickness" Value="2,0,0,0" />
+  </Style>
+  <Style Selector="ListBox.dockRows:not(:focus-within) ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedIdleBrush}" />
+  </Style>
+
+  <!-- The one place a checkbox belongs in a mod table (non-negotiable #2): Updates
+       and Collection, where the question genuinely is "which of these".
+
+       This is a ToggleButton with our own template rather than a Fluent CheckBox.
+       Fluent's is built for a 32px row with a label beside it: it carries a MinWidth,
+       a MinHeight and a leading padding, and its box lives inside a fixed-size grid
+       cell that a property setter cannot reach. Squeezed into a 24px table row it
+       clipped, and every attempt to fix it from the outside was guesswork about a
+       template compiled into the assembly. Twelve lines of our own template is both
+       shorter and knowable.
+
+       20px outer for the hit target, 14px box to match 2b. -->
+  <Style Selector="ToggleButton.rowCheck">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="Transparent">
+          <Border x:Name="box" Width="14" Height="14"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  CornerRadius="{DynamicResource RmRadiusBadge}"
+                  BorderThickness="1"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}">
+            <PathIcon x:Name="glyph" Width="9" Height="9" IsVisible="False"
+                      Data="{DynamicResource RmIconCheck}"
+                      Foreground="{DynamicResource RmOnAccentBrush}" />
+          </Border>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ToggleButton.rowCheck:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck:checked">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck:checked /template/ PathIcon#glyph">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <!--
+    O25 · the TICK variant: no box, just the mark. Owner's call for the Updates tab,
+    where a column of 14px outlines competed with the source badges and the state pills
+    beside them.
+
+    The unchecked tick is rendered at text.disabled rather than hidden. Non-negotiable
+    #11 — affordances are always drawn and only brighten, never hover-revealed — and an
+    empty 20px cell in a dense table gives no clue anything is clickable. Faint enough
+    not to read as "already ticked", present enough to say "this is a tick you can set".
+
+    Applied to Updates only. The import-collection wizard keeps its boxes deliberately:
+    that is a one-shot modal where the user is picking from a list they have never seen,
+    and an explicit box is the clearer affordance when nothing is familiar.
+  -->
+  <Style Selector="ToggleButton.rowCheck.tick /template/ Border#box">
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck.tick /template/ PathIcon#glyph">
+    <Setter Property="IsVisible" Value="True" />
+    <Setter Property="Width" Value="11" />
+    <Setter Property="Height" Value="11" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextDisabledBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck.tick:pointerover /template/ PathIcon#glyph">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck.tick:checked /template/ Border#box">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck.tick:checked /template/ PathIcon#glyph">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+  <!-- The header's tri-state: the box stays off, and "some" is the dash the base
+       indeterminate rule already draws — see below. -->
+  <Style Selector="ToggleButton.rowCheck.tick:indeterminate /template/ Border#box">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- Indeterminate is the header's "some of the safe set" state: a dash, never a
+       tick, because a tick would claim the whole set is selected. -->
+  <Style Selector="ToggleButton.rowCheck:indeterminate">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.rowCheck:indeterminate /template/ PathIcon#glyph">
+    <Setter Property="IsVisible" Value="True" />
+    <Setter Property="Data" Value="{DynamicResource RmIconMinus}" />
+  </Style>
+
+  <!-- Settings toggle (1c, 2g). A pill, not a checkbox: these are settings that take
+       effect, where a checkbox reads as an item in a set. Templated ourselves for the
+       same reason the table checkbox is — Fluent's ToggleSwitch is built for a 32px
+       row with its own min-widths, and squeezing it is guesswork about markup that
+       ships compiled. The label is inside the template, so the whole row toggles. -->
+  <Style Selector="ToggleButton.pill">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="30,9,*" Background="Transparent">
+          <Border Grid.Column="0" x:Name="track" Height="16" CornerRadius="8"
+                  VerticalAlignment="Center"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+            <Ellipse x:Name="knob" Width="11" Height="11" Margin="2,0"
+                     HorizontalAlignment="Left" VerticalAlignment="Center"
+                     Fill="{DynamicResource RmTextTertiaryBrush}" />
+          </Border>
+          <ContentPresenter Grid.Column="2" Content="{TemplateBinding Content}"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource RmTextSecondaryBrush}" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ToggleButton.pill:checked">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.pill:checked /template/ Ellipse#knob">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="Fill" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.pill:pointerover /template/ Border#track">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- A segmented either/or (2g, Row density). One bordered container holding radios that
+       drop their own indicator: the choice is the segment, so a dot beside a filled
+       segment would state it twice. Radios rather than toggles because it IS a radio
+       group — arrow keys move between them and only one can be on.
+
+       That arrow behaviour is also a hazard, and it decides which control a segment
+       group uses: arrow keys CHECK segments as focus moves, so keys meant for scrolling
+       can change the setting. Density and the narrow-pane switch stay radios — their
+       misfire is loudly visible the moment it happens. The log level uses
+       Button.segment below, because its misfire is invisible: a floor accidentally
+       landed on Error silences the very log that would have named the change, which is
+       exactly the unchosen logLevelIndex 0 the owner's settings.json carried. -->
+  <Style Selector="Border.segmented">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="RadioButton.segment">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="14,5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="seg" Background="{TemplateBinding Background}">
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            Padding="{TemplateBinding Padding}"
+                            Foreground="{TemplateBinding Foreground}"
+                            VerticalAlignment="Center" HorizontalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.segment:pointerover">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="RadioButton.segment:checked">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- The same segment as a Button, for the group whose misfire is invisible (the
+       comment on Border.segmented has the reasoning). Acts on click/Space/Enter only;
+       the on class carries the selected state (N4g's chip shape). Hover is scoped
+       :not(.on) so it cannot dim the selected segment — the explicit form of the
+       equal-specificity-later-wins ordering the radio version relies on. -->
+  <Style Selector="Button.segment">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="14,5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="seg" Background="{TemplateBinding Background}">
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            Padding="{TemplateBinding Padding}"
+                            Foreground="{TemplateBinding Foreground}"
+                            VerticalAlignment="Center" HorizontalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.segment:not(.on):pointerover">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="Button.segment.on">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- ==================== T2 · the systemic states pass ==================== -->
+
+  <!-- ONE focus ring for every control (design handoff v2): 1.5px RmFocusRing,
+       ~1px offset, keyboard focus only — Avalonia shows FocusAdorner solely for
+       focus gained by keyboard, which is exactly :focus-visible. Set once here
+       rather than per template, because every custom template in this file
+       removed Fluent's adorner and none re-added one: keyboard users had NO
+       visible focus anywhere. A single template cannot match each control's
+       radius; r5 at -2 reads right on the r2–r6 family, and a control that needs
+       better can override its own FocusAdorner. -->
+  <Style Selector=":is(Control)">
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border BorderBrush="{DynamicResource RmFocusRingBrush}" BorderThickness="1.5"
+                CornerRadius="5" Margin="-2" />
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+
+  <!-- Disabled must differ from enabled (v2 systemic pass): every templated class
+       whose template dropped Fluent's disabled dimming gets it back. Opacity on
+       the whole control rather than re-inking each template part — consistent
+       with Button.icon:disabled above, and honest: the control reads present,
+       inert, and unchanged in shape. -->
+  <Style Selector="ToggleButton.pill:disabled, ToggleButton.rowCheck:disabled, RadioButton.segment:disabled, Button.segment:disabled, ToggleButton.chip:disabled, Button.chip:disabled, RadioButton.card:disabled, Button.tagMode:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <!-- Hover restated on the chip family and icon buttons (v2): the four solid
+       buttons already restate hover on the presenter; these fell through to
+       Fluent's off-token grey. :not() keeps the checked/on state's selected fill
+       from being eaten by hover, order-proof. -->
+  <Style Selector="ToggleButton.chip:pointerover:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="Button.chip:pointerover:not(.on) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+
+  <!-- Splitters announce themselves on hover (v2): a fully invisible 5px grab
+       lane was an affordance only the initiated could find. Accent tint, the
+       same wash selection uses at lower stakes. -->
+  <Style Selector="GridSplitter.pane:pointerover, GridSplitter.dockDetail:pointerover, GridSplitter.dockStack:pointerover, GridSplitter.dockHeight:pointerover">
+    <Setter Property="Background" Value="{DynamicResource RmAccentTintBrush}" />
+  </Style>
+
+  <!-- The owned SplitButton (v2): Sort and Apply were the last two toolbar
+       controls outside the class system — Apply hand-set accent brushes as LOCAL
+       values with no hover at all, on the app's primary action. PART_PrimaryButton
+       and PART_SecondaryButton are code-required template parts, so the names are
+       stable API, not template guesswork. -->
+  <Style Selector="SplitButton.toolbar /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+  <Style Selector="SplitButton.toolbar /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="SplitButton.toolbar /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+
+  <Style Selector="SplitButton.accent /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="SplitButton.accent /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentHoverBrush}" />
+  </Style>
+  <Style Selector="SplitButton.accent /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+  <!-- The halves' divider: the secondary button carries a left rule. A lighter
+       accent rather than the design's on-accent@30% — a translucent brush would
+       need a per-theme precomputed token this earns later if it reads wrong. -->
+  <Style Selector="SplitButton.accent /template/ Button#PART_SecondaryButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderThickness" Value="1,0,0,0" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentHoverBrush}" />
+  </Style>
+  <Style Selector="SplitButton.toolbar /template/ Button#PART_SecondaryButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderThickness" Value="1,0,0,0" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+  </Style>
+
+  <!-- The owned CheckBox (v2): Fluent's is built for 32px rows, like the
+       CheckBox/ToggleSwitch this project already replaced.
+
+       F2 · this comment claimed "Changed only" was the LAST raw Fluent check, and by the
+       time the audit read it that was false — the Tags ▾ flyout had grown two more. It is
+       true again, but not because anything here changed: O1/O7 rebuilt that flyout on the
+       tick-in-a-14px-slot grammar, so the two Fluent checks went with the old markup and
+       the XML diff's is now the ONLY CheckBox in the app.
+
+       The second half of the old sentence — "Cherry Picker's def browser (T7) needs the
+       same 14px box" — is deleted rather than updated. That browser was CANCELLED with
+       the settings editor (NEXT_PLAN §T7a′), and a style justified by a feature that no
+       longer exists is how dead code outlives the thing it was written for. -->
+  <!-- One consumer today: XmlDiffWindow's "Changed only". -->
+  <Style Selector="CheckBox.rm">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="6,0,0,0" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextSecondaryBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel Orientation="Horizontal" Background="Transparent">
+          <Border x:Name="box" Width="14" Height="14"
+                  CornerRadius="{DynamicResource RmRadiusBadge}" BorderThickness="1"
+                  BorderBrush="{DynamicResource RmBorderStrongBrush}"
+                  Background="{DynamicResource RmBackgroundSurfaceBrush}"
+                  VerticalAlignment="Center">
+            <PathIcon x:Name="tick" Data="{StaticResource RmIconCheck}" Width="9" Height="9"
+                      Foreground="{DynamicResource RmOnAccentBrush}" IsVisible="False" />
+          </Border>
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            Margin="{TemplateBinding Padding}"
+                            TextElement.Foreground="{TemplateBinding Foreground}"
+                            VerticalAlignment="Center" />
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="CheckBox.rm:pointerover /template/ Border#box">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="CheckBox.rm:checked /template/ Border#box">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="CheckBox.rm:checked /template/ PathIcon#tick">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="CheckBox.rm:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <!-- Count-pill tones (v2): neutral is the base; warn/accent/bad carry the highest
+       severity inside. The dock strip comment promised these from R4 and shipped
+       neutral-only — the strip is the notification surface, so the tones are real
+       now, driven by bound classes, never local values. -->
+  <Style Selector="Border.countPill.warn">
+    <Setter Property="Background" Value="{DynamicResource RmWarningTintBrush}" />
+  </Style>
+  <Style Selector="Border.countPill.warn TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="Border.countPill.accent">
+    <Setter Property="Background" Value="{DynamicResource RmAccentTintBrush}" />
+  </Style>
+  <Style Selector="Border.countPill.accent TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+  <Style Selector="Border.countPill.bad">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+  </Style>
+  <Style Selector="Border.countPill.bad TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+
+  <!-- Icon tone classes (v2): colour asserts a problem state only when one exists.
+       Base is tertiary where the pattern is used (the dock strip); the tone
+       classes are global so the status bar's counts share the grammar. -->
+  <Style Selector="Button.dockTab PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="PathIcon.warnOn">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <!-- badOn AFTER warnOn on purpose: a row wearing both (blocking beats warning)
+       must resolve to danger, and equal specificity means the later style wins. -->
+  <Style Selector="PathIcon.badOn">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="PathIcon.accentOn">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- A keycap (v2, S-KEYS): the shortcut sheet used count pills for keys — a class
+       whose semantic is counts. h18, 2px bottom edge for the key look. -->
+  <Style Selector="Border.keycap">
+    <Setter Property="Height" Value="18" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="BorderThickness" Value="1,1,1,2" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="Padding" Value="6,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- The Mod Info preview crop (N8): a full-bleed image button. The template is taken
+       over because Fluent's Button carries MinWidth 32, its own padding and corner
+       masking as local template values — the standing answer to the local-value trap.
+       Hover deliberately changes NOTHING: the content is an opaque image, so a hover
+       background would have nowhere to show, and #11 forbids hover-revealed chrome; the
+       Hand cursor and the tooltip carry the affordance instead. -->
+  <Style Selector="Button.previewImage">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Content="{TemplateBinding Content}"
+                          HorizontalContentAlignment="Stretch"
+                          VerticalContentAlignment="Stretch" />
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+  <!-- The 30px colour swatch. Named for the RETIRED accent picker (2g) but its one
+       surviving consumer is first-run's modlist colour dots — the accent is
+       theme-bound now (v2). The selected one takes a ring separated from the fill by a
+       gap — Avalonia has no outline-offset, so the gap is the template's Padding between
+       an outer ring border and the inner filled one. A Button, not a coloured rectangle,
+       so it is focusable and space/enter picks it. -->
+  <Style Selector="Button.accentSwatch">
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="3" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <Border x:Name="fill" Background="{TemplateBinding Background}"
+                  CornerRadius="{DynamicResource RmRadiusControl}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.accentSwatch.selected">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="Button.accentSwatch:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+  <Style Selector="Button.accentSwatch.selected:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- A rule row in the editor (2i-5). A switched-off community rule renders at 55%
+       and keeps its place: it is remembered, never deleted, so a database resync cannot
+       quietly restore it. Opacity by bound CLASS, not a converter — the project's one
+       mechanism for state-driven appearance. -->
+  <Style Selector="Border.ruleRow">
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style Selector="Border.ruleRow.off">
+    <Setter Property="Opacity" Value="0.55" />
+  </Style>
+
+  <!-- The danger zone card (2g, Advanced): a danger border so the section reads as
+       different before anything in it is read. -->
+  <Style Selector="Border.card.dangerZone">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+
+  <!-- A tag colour swatch (2g, Tags & metadata). Same ring-with-a-gap as the accent
+       swatch, and the same reason for being a Button: it is a choice, so it must be
+       focusable. The hues come from the palette by CLASS rather than a bound brush,
+       so they re-resolve when the theme flips (non-negotiable #6). -->
+  <Style Selector="Button.tagSwatch">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <Border Background="{TemplateBinding Background}" CornerRadius="3" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.tagSwatch.p0">
+    <Setter Property="Background" Value="{DynamicResource RmPalette0Brush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.p1">
+    <Setter Property="Background" Value="{DynamicResource RmPalette1Brush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.p2">
+    <Setter Property="Background" Value="{DynamicResource RmPalette2Brush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.p3">
+    <Setter Property="Background" Value="{DynamicResource RmPalette3Brush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.p4">
+    <Setter Property="Background" Value="{DynamicResource RmPalette4Brush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.p5">
+    <Setter Property="Background" Value="{DynamicResource RmPalette5Brush}" />
+  </Style>
+  <!-- Accent ring, not white (UI audit): one swatch grammar at every size — the
+       30px accent swatch already used it, and the design says "selection = focus
+       ring, at 16/24/30px alike". -->
+  <Style Selector="Button.tagSwatch.selected">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+  <Style Selector="Button.tagSwatch.selected:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentHoverBrush}" />
+  </Style>
+
+  <!-- A theme preview card (2g): a miniature of the window, drawn in the variant it
+       stands for. Fixed size because it is a picture of a layout, not a container for
+       content. The selected one takes the accent border; the radio underneath is the
+       actual control, so this stays keyboard-reachable without a second tab stop. -->
+
+  <!-- A choice that carries a rationale (2g). A card rather than a bare radio,
+       because the reason to pick it is a sentence and a bare radio has nowhere to put
+       one. The selected card takes the accent border, so the choice reads from the
+       shape as well as from the dot. -->
+  <!--
+    A card-shaped radio. The container was styled here from the start, but the INDICATOR
+    was still Fluent's — built for 32px rows, carrying its own minimums, and shipping
+    compiled, so it rendered as a heavy filled disc against a 13px design. Exactly the
+    problem CheckBox and ToggleSwitch already had, and the same answer: our own template.
+
+    The checked mark is a RING, not a centre dot — read off the `2i`-3 screenshot, where
+    the selected radio is an accent annulus with the card colour showing through.
+  -->
+  <Style Selector="RadioButton.card">
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusCard}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <Grid ColumnDefinitions="13,10,*">
+            <!-- Transparent fill rather than none, so the circle itself is clickable. -->
+            <Ellipse x:Name="ring" Grid.Column="0" Width="13" Height="13"
+                     VerticalAlignment="Top" Margin="0,2,0,0"
+                     StrokeThickness="1"
+                     Stroke="{DynamicResource RmBorderStrongBrush}"
+                     Fill="Transparent" />
+            <ContentPresenter Grid.Column="2" Content="{TemplateBinding Content}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Stretch" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.card:pointerover /template/ Ellipse#ring">
+    <Setter Property="Stroke" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="RadioButton.card:checked /template/ Ellipse#ring">
+    <Setter Property="Stroke" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="StrokeThickness" Value="3.5" />
+  </Style>
+  <Style Selector="RadioButton.card:checked">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+  <Style Selector="RadioButton.card:pointerover:not(:checked)">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+
+  <!-- ==================== First run (2j) ==================== -->
+  <!-- One node of the 4-step progress chain: 16px circle, joined by an 18px rule.
+       Shape AND fill carry the state, never fill alone — a done node gets a ✓. -->
+  <Style Selector="Border.chainNode">
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.chainNode.done">
+    <Setter Property="Background" Value="{DynamicResource RmSuccessBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="Border.chainNode.current">
+    <Setter Property="Background" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- The step number, centred inside its circle. On the current node it sits on an
+       accent fill and needs on-accent ink; elsewhere it is an outline. -->
+  <Style Selector="TextBlock.chainNumber">
+    <Setter Property="FontFamily" Value="{DynamicResource RmFontMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMicro}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.chainNumber.current">
+    <Setter Property="Foreground" Value="{DynamicResource RmOnAccentBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.chainLabel">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.chainLabel.done">
+    <Setter Property="Foreground" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="TextBlock.chainLabel.current">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- The 18px rule joining two nodes. -->
+  <Style Selector="Border.chainRule">
+    <Setter Property="Width" Value="18" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="8,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource RmBorderStrongBrush}" />
+  </Style>
+
+  <!-- A bordered opt-in card (2j step 4) and the reassurance callout (1d). -->
+  <Style Selector="Border.optIn">
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusCard}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="Padding" Value="12,10" />
+  </Style>
+  <Style Selector="Border.optIn.on">
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+  <Style Selector="Border.reassure">
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusCard}" />
+    <Setter Property="BorderThickness" Value="3,1,1,1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmSuccessBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RmSuccessTintBrush}" />
+    <Setter Property="Padding" Value="12,10" />
+  </Style>
+
+  <!-- ==================== Settings ▸ Integrations (2g) ==================== -->
+  <!-- A 20px lettered badge on an integration card. Same "letter AND tint, never tint
+       alone" rule as the row badge, and the same brushes, at the size 2g draws. -->
+  <Style Selector="Border.intBadge">
+    <Setter Property="Width" Value="{DynamicResource RmIntegrationBadgeSize}" />
+    <Setter Property="Height" Value="{DynamicResource RmIntegrationBadgeSize}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intWorkshop">
+    <Setter Property="Background" Value="{DynamicResource RmSrcWorkshopBgBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intWorkshop > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcWorkshopFgBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intGit">
+    <Setter Property="Background" Value="{DynamicResource RmSrcGitBgBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intGit > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcGitFgBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intLocal">
+    <Setter Property="Background" Value="{DynamicResource RmSrcLocalBgBrush}" />
+  </Style>
+  <Style Selector="Border.intBadge.intLocal > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmSrcLocalFgBrush}" />
+  </Style>
+
+  <!-- The state pill on an integration card. Present/absent is carried by the WORD
+       inside it, not by the tint: `on` only adds the success hue to a pill that already
+       reads "running". -->
+  <Style Selector="Border.statePill">
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+  </Style>
+  <Style Selector="Border.statePill > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+  <!-- A compact variant for TABLE ROWS. The card pills above sit on a card with room
+       to spare, but a modlist row is 24px and can carry TWO of them at once — a list
+       that is both open and default — with a few px between. At the card's 8,2 padding
+       they crowd each other and the name beside them. Smaller, on a fixed height so
+       every row measures the same whether it carries a pill or not, and the label
+       centred in both axes rather than sitting wherever the padding leaves it. -->
+  <Style Selector="Border.statePill.compact">
+    <!-- Hugs its label with symmetric padding rather than taking a fixed Height. With a
+         fixed 15px box the TextBlock centred its LINE BOX, not its glyphs — and a line
+         box reserves descender space that "default" and "open" barely use, so the word
+         sat visibly high inside the pill. Letting the border hug removes the gap the
+         text was being centred within. Row height is not at risk: the row wrapper
+         already fixes it. -->
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="Border.statePill.compact > TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMicro}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.statePill.on">
+    <Setter Property="Background" Value="{DynamicResource RmSuccessTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.on > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmSuccessBrush}" />
+  </Style>
+  <!-- warn (T5): a state that WANTS something — "not synced" on a database card that
+       is switched on but empty, or a pre-release on the Updates table.
+
+       O25 · `acc` and `bad` join it. The note here used to say there was deliberately no
+       bad variant "because no card has an error-state of its own"; the Updates rows now
+       do — `delisted` is exactly that — so the reason expired rather than the rule
+       changing. Still no `busy`: in-flight work is the status bar's activity zone, and a
+       styled state nothing can reach is dead code wearing a vocabulary. -->
+  <Style Selector="Border.statePill.acc">
+    <Setter Property="Background" Value="{DynamicResource RmAccentTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.acc > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentTextBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.bad">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.bad > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.warn">
+    <Setter Property="Background" Value="{DynamicResource RmWarningTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.warn > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmWarningBrush}" />
+  </Style>
+  <!-- bad (S-INTEG): the last sync ERRORED — an upstream that broke is different
+       news from an upstream not yet asked, and the two used to wear one amber. The
+       message rides the pill's tooltip, so the alarm carries its sentence. -->
+  <Style Selector="Border.statePill.bad">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+  <Style Selector="Border.statePill.bad > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource RmDangerBrush}" />
+  </Style>
+
+  <!-- A field the app fills in and the user cannot: same shape as an input so the
+       column still lines up, but visibly not a place to type. -->
+  <Style Selector="TextBox.derived">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextTertiaryBrush}" />
+  </Style>
+
+  <!-- Diff lines (3c). The tint carries the row; the text colour and the leading
+       +/- carry it again, because colour is never the only signal. -->
+  <Style Selector="Border.diffAdd">
+    <Setter Property="Background" Value="{DynamicResource RmSuccessTintBrush}" />
+  </Style>
+  <Style Selector="Border.diffRemove">
+    <Setter Property="Background" Value="{DynamicResource RmDangerTintBrush}" />
+  </Style>
+
+  <!-- The master/detail splitter. Transparent so it reads as the 1px rule the
+       detail panel already draws, but a full 5px grab target. -->
+  <Style Selector="GridSplitter.dockDetail">
+    <Setter Property="Width" Value="{DynamicResource RmSplitterWidth}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="ResizeDirection" Value="Columns" />
+  </Style>
+
+  <!-- The same grip turned on its side, for 2k's stacked dock below 900px. It resizes
+       ROWS, which is the whole difference; a dockDetail splitter left in a row would
+       drag nothing and give no clue why. -->
+  <Style Selector="GridSplitter.dockStack">
+    <Setter Property="Height" Value="{DynamicResource RmSplitterWidth}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="ResizeDirection" Value="Rows" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- The dock's own height grip, above the strip. -->
+  <Style Selector="GridSplitter.dockHeight">
+    <Setter Property="Height" Value="{DynamicResource RmSplitterWidth}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="ResizeDirection" Value="Rows" />
+  </Style>
+
+  <!-- ============================== menus ================================ -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Menu > MenuItem">
+    <Setter Property="Padding" Value="9,3" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusControl}" />
+    <Setter Property="Foreground" Value="{DynamicResource RmTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="MenuItem">
+    <Setter Property="MinHeight" Value="{DynamicResource RmMenuItemHeight}" />
+  </Style>
+  <!-- Disabled items keep their shortcut visible — a greyed row with its key
+       still teaches (2h). -->
+  <Style Selector="MenuItem:disabled">
+    <Setter Property="Foreground" Value="{DynamicResource RmTextDisabledBrush}" />
+  </Style>
+
+  <!-- ====================== the flyout shell (N3 · UI-8) ==================== -->
+  <!--
+    ONE shell for every dropdown in the app: the modlist selector, Sort ▾, Apply ▾, the
+    ⋯ overflow, Tags ▾, + Tag, the row context menus, the separator kebab, Snooze, and
+    every menu-bar dropdown. Written once as type selectors rather than a class per
+    surface, because eight copies of a look are eight places for it to drift and only
+    one of them is ever on screen to notice.
+
+    3f gives the shell exactly: RmBackgroundElevatedBrush, 1px RmBorderStrongBrush, 5px
+    radius, 4px vertical padding, 24px items. It is the command palette's look minus the
+    scrim and the shadow — the palette is a surface you summon, a dropdown is attached to
+    the thing you clicked.
+
+    Everything below replaces a value MEASURED from the running app, not a guess at what
+    Fluent might be doing. Unstyled, the presenter was #2B2B2B on a BLACK border, items
+    were 28px with 4-top/7-bottom padding, separators were #66FFFFFF, and hover was
+    #19FFFFFF. Those are Fluent's own greys: nothing in this app's token set produces
+    them, which is why every dropdown read as though it came from another program.
+  -->
+  <Style Selector="MenuFlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusFlyout}" />
+    <Setter Property="Padding" Value="0,4" />
+    <!-- Fluent ships MinHeight 32 on the presenter, which is taller than a one-item
+         menu needs and leaves a gap under the only row. -->
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <!-- The presenter's own template wraps everything in a Border named LayoutRoot, and a
+       value set THERE beats what the presenter inherits — the same shape as Fluent's
+       CheckBox and Button.accent. Setting the presenter alone leaves the black border. -->
+  <Style Selector="MenuFlyoutPresenter /template/ Border#LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusFlyout}" />
+  </Style>
+
+  <!-- Plain Flyouts (Tags ▾, + Tag) carry arbitrary content rather than menu rows, so
+       they keep their padding but take the same shell. -->
+  <Style Selector="FlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusFlyout}" />
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+  </Style>
+
+  <!-- A ContextMenu is its own MenuBase, not a flyout, so it needs the shell stated
+       again — the row context menu and the separator kebab both land here. -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusFlyout}" />
+    <Setter Property="Padding" Value="0,4" />
+  </Style>
+
+  <!--
+    24px rows (2h, 3f). Fluent renders 28 — MinHeight 24 plus 4-top/7-bottom padding
+    around a 17px line — and the asymmetry is why its labels sit visibly high in the row.
+    Symmetric horizontal padding with none vertical lets MinHeight decide the height, so
+    the number in Metrics is the number on screen.
+
+    Menu > MenuItem (the menu BAR's own top-level items) keeps its own padding above;
+    this selector deliberately does not reach it.
+  -->
+  <Style Selector="MenuFlyoutPresenter MenuItem, ContextMenu MenuItem, MenuItem MenuItem">
+    <Setter Property="Padding" Value="11,0" />
+    <Setter Property="MinHeight" Value="{DynamicResource RmMenuItemHeight}" />
+  </Style>
+
+  <!-- Hover and open-submenu land on PART_LayoutRoot, NOT on the MenuItem: Fluent paints
+       its state fill on that inner Border, and a value on an element beats anything
+       inherited from its parent. Styling MenuItem.Background here would change nothing
+       at all and look exactly like a working style. -->
+  <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundHoverBrush}" />
+  </Style>
+  <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+
+  <!-- Menu separators: 1px on our own subtle rule, not Fluent's 40% white. -->
+  <Style Selector="MenuFlyoutPresenter Separator, ContextMenu Separator, MenuItem Separator">
+    <Setter Property="Background" Value="{DynamicResource RmBorderSubtleBrush}" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="0,4" />
+  </Style>
+
+  <!-- ============================ separators ============================= -->
+  <!-- Always 22px regardless of density; bg.elevated with a strong top rule. -->
+  <Style Selector="Border.separatorRow">
+    <Setter Property="Height" Value="{DynamicResource RmSeparatorRowHeight}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundElevatedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RmBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+
+  <!-- A selected separator could never LOOK selected. Selection is painted on the
+       ListBoxItem's ContentPresenter, and this row's own opaque bg.elevated Border
+       sits inside that presenter and covers every pixel of it — so a mod row showed
+       the highlight and a separator showed nothing, which made "the separator I am
+       about to insert above" impossible to see. Declared AFTER the base rule, since
+       equal specificity means the later style wins.
+
+       Only the two backgrounds are taken over — which is now the whole of selection,
+       since O6 removed the presenter's accent edge. -->
+  <Style Selector="ListBox.rows ListBoxItem:selected Border.separatorRow">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedBrush}" />
+  </Style>
+  <Style Selector="ListBox.rows:not(:focus-within) ListBoxItem:selected Border.separatorRow">
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundSelectedIdleBrush}" />
+  </Style>
+  <Style Selector="TextBlock.separatorLabel">
+    <Setter Property="FontSize" Value="{DynamicResource RmFontSizeMono}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <!-- Avalonia has no letter-spacing; README's substitution is to ship the caps
+         label without tracking rather than fake it with per-character runs. -->
+  </Style>
+
+  <!-- ============================= palette ============================== -->
+  <!-- Tag and separator colour, addressed by index. Same reasoning as the source
+       badges: a class keeps the DynamicResource in the style so the hue re-resolves
+       when the theme flips, where a value converter would hand back a brush frozen
+       at the moment it ran. Apply .paletted (fill) or .palettedText (foreground)
+       together with .p{n}.
+
+       The six are written out per element type rather than grouped: Foreground
+       lives on TemplatedControl for a TextBox and on TextBlock itself, so one
+       setter cannot serve both. -->
+  <Style Selector="Border.paletted.p0">
+    <Setter Property="Background" Value="{DynamicResource RmPalette0Brush}" />
+  </Style>
+  <Style Selector="Border.paletted.p1">
+    <Setter Property="Background" Value="{DynamicResource RmPalette1Brush}" />
+  </Style>
+  <Style Selector="Border.paletted.p2">
+    <Setter Property="Background" Value="{DynamicResource RmPalette2Brush}" />
+  </Style>
+  <Style Selector="Border.paletted.p3">
+    <Setter Property="Background" Value="{DynamicResource RmPalette3Brush}" />
+  </Style>
+  <Style Selector="Border.paletted.p4">
+    <Setter Property="Background" Value="{DynamicResource RmPalette4Brush}" />
+  </Style>
+  <Style Selector="Border.paletted.p5">
+    <Setter Property="Background" Value="{DynamicResource RmPalette5Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p0">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette0Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p0">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette0Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p1">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette1Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p1">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette1Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p2">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette2Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p2">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette2Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p3">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette3Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p3">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette3Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p4">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette4Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p4">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette4Brush}" />
+  </Style>
+  <Style Selector="TextBlock.palettedText.p5">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette5Brush}" />
+  </Style>
+  <Style Selector="TextBox.palettedText.p5">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette5Brush}" />
+  </Style>
+
+  <!-- PathIcon takes the same treatment, for the ✓ that commits a separator rename:
+       the control that ends the edit is tinted with the colour of the thing being
+       edited. Written out per element type for the reason stated above — Foreground
+       lives on TemplatedControl here and on TextBlock itself, so one setter cannot
+       serve both. -->
+  <Style Selector="PathIcon.palettedText.p0">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette0Brush}" />
+  </Style>
+  <Style Selector="PathIcon.palettedText.p1">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette1Brush}" />
+  </Style>
+  <Style Selector="PathIcon.palettedText.p2">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette2Brush}" />
+  </Style>
+  <Style Selector="PathIcon.palettedText.p3">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette3Brush}" />
+  </Style>
+  <Style Selector="PathIcon.palettedText.p4">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette4Brush}" />
+  </Style>
+  <Style Selector="PathIcon.palettedText.p5">
+    <Setter Property="Foreground" Value="{DynamicResource RmPalette5Brush}" />
+  </Style>
+
+  <!-- =========================== progress bars =========================== -->
+  <!-- 2k's first-scan bar. Fluent's own is built around its accent resource and a
+       minimum height for 32px rows; ours is 4px on our tokens. Nothing else in the
+       app shows a determinate bar, so there is one class rather than a scale. -->
+  <Style Selector="ProgressBar.scan">
+    <Setter Property="Height" Value="4" />
+    <Setter Property="MinHeight" Value="4" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RmRadiusBadge}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundAltBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource RmAccentBrush}" />
+  </Style>
+
+  <!-- ============================= splitters ============================= -->
+  <Style Selector="GridSplitter.pane">
+    <Setter Property="Width" Value="{DynamicResource RmSplitterWidth}" />
+    <Setter Property="Background" Value="{DynamicResource RmBackgroundCanvasBrush}" />
+    <Setter Property="ResizeDirection" Value="Columns" />
+  </Style>
+</Styles>

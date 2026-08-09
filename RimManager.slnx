@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RimManager.App/RimManager.App.csproj" />
+    <Project Path="src/RimManager.Cli/RimManager.Cli.csproj" />
+    <Project Path="src/RimManager.Core/RimManager.Core.csproj" />
+    <Project Path="src/RimManager.Integrations/RimManager.Integrations.csproj" />
+    <Project Path="src/RimManager.Storage/RimManager.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RimManager.App.Tests/RimManager.App.Tests.csproj" />
+    <Project Path="tests/RimManager.Core.Tests/RimManager.Core.Tests.csproj" />
+    <Project Path="tests/RimManager.Integration.Tests/RimManager.Integration.Tests.csproj" />
+  </Folder>
+</Solution>

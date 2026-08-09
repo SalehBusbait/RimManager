@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Title="About RimManager" Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!-- 2i-9 · 440px. Every fact here is read from the running assembly, never typed. -->
+  <StackPanel Margin="20" Spacing="14">
+
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <!-- The app mark. A brand asset keeps its own colours in both themes, which is
+           why this is a bitmap rather than a tokenised shape. -->
+      <Image Source="{Binding Mark}"
+             Width="34" Height="34" VerticalAlignment="Top" />
+
+      <StackPanel Spacing="3">
+        <TextBlock Text="RimManager" Classes="title" />
+        <TextBlock Text="{Binding VersionLine}" Classes="small mono ter"
+                   TextWrapping="Wrap" HorizontalAlignment="Left" MaxWidth="330" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- N12 · the licence sits ABOVE the credits: "what may I do with this" is the
+         first question About exists to answer, and the credits and the Ludeon
+         disclaimer are the qualifications on it. -->
+    <TextBlock Text="{Binding Licence}" Classes="note" />
+    <TextBlock Text="{Binding Credits}" Classes="note" />
+
+    <StackPanel Orientation="Horizontal" Spacing="6">
+      <Button Classes="quiet" Click="OnGitHub">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock Text="GitHub" VerticalAlignment="Center" />
+          <PathIcon Data="{StaticResource RmIconExternal}" Width="9" Height="9"
+                    VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="quiet" Content="Copy version info" Click="OnCopyVersion" />
+      <Button Classes="quiet" Content="Close" IsCancel="True" Click="OnClose"
+              HorizontalAlignment="Right" />
+    </StackPanel>
+  </StackPanel>
+</Window>

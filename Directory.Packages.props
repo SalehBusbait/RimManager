@@ -1,0 +1,44 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Lets us pin a patched version of a transitive dependency below without a
+         direct PackageReference (see SQLitePCLRaw.lib.e_sqlite3). -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Central Package Management: one authoritative version per package. -->
+
+  <ItemGroup Label="MVVM / UI">
+    <PackageVersion Include="Avalonia" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
+    <!-- Avalonia.Diagnostics has no 12.x release yet; re-add when it ships. -->
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup Label="Storage / platform">
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <!-- Transitively pinned: Microsoft.Data.Sqlite pulls the native SQLite bundle
+         lib 2.1.11, which carries GHSA-2m69-gcr7-jv3q (high). 3.53.3 is the current
+         patched native lib; the P/Invoke surface is stable across the bump. -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
+    <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+
+  <ItemGroup Label="CLI">
+    <!-- 2.0.10 is the latest stable; 3.0.0 is preview-only. -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.10" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
+    <!-- FluentAssertions is pinned to 7.x on purpose: v8+ moved to a paid commercial license. -->
+    <PackageVersion Include="FluentAssertions" Version="7.2.0" />
+  </ItemGroup>
+
+</Project>

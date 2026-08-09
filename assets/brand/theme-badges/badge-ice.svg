@@ -1,0 +1,27 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Ice Sheet theme</title>
+<defs><clipPath id="badge-ice"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#0F1E2C"></rect>
+<g clip-path="url(#badge-ice)">
+<path d="M72 124 Q160 86 248 120" fill="none" stroke="#6FE0B8" stroke-width="9" stroke-linecap="round" opacity="0.2"></path>
+<path d="M78 140 Q160 106 244 136" fill="none" stroke="#8FA8F0" stroke-width="6" stroke-linecap="round" opacity="0.15"></path>
+<circle cx="224" cy="84" r="10" fill="#DCE9F2" opacity="0.95"></circle>
+<circle cx="221" cy="81" r="2.4" fill="#B7CBD9" opacity="0.8"></circle>
+<circle cx="227" cy="88" r="1.6" fill="#B7CBD9" opacity="0.8"></circle>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#9FD2E8" stroke-width="1.5" opacity=".45"></circle>
+<circle cx="160" cy="470" r="260" fill="#B9D6E3"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#E6F4FA" stroke-width="2.5"></circle>
+<path d="M94 230 L116 190 L116 230 Z" fill="#EAF4FA"></path>
+<path d="M116 190 L138 230 L116 230 Z" fill="#A9C8D8"></path>
+<path d="M146 232 L176 182 L176 232 Z" fill="#EAF4FA"></path>
+<path d="M176 182 L206 232 L176 232 Z" fill="#A9C8D8"></path>
+<circle cx="88" cy="82" r="2" fill="#FFFFFF" opacity="0.75"></circle>
+<circle cx="236" cy="72" r="1.6" fill="#FFFFFF" opacity="0.55"></circle>
+<circle cx="108" cy="112" r="1.4" fill="#FFFFFF" opacity="0.45"></circle>
+<circle cx="234" cy="182" r="1.8" fill="#FFFFFF" opacity="0.6"></circle>
+<circle cx="76" cy="160" r="1.3" fill="#FFFFFF" opacity="0.4"></circle>
+<circle cx="150" cy="96" r="1.4" fill="#FFFFFF" opacity="0.6"></circle>
+<circle cx="196" cy="132" r="1.2" fill="#FFFFFF" opacity="0.5"></circle>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#24455C" stroke-width="2"></rect>
+</svg>

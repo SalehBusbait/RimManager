@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RimManager.Core\RimManager.Core.csproj" />
+    <ProjectReference Include="..\..\src\RimManager.Storage\RimManager.Storage.csproj" />
+    <ProjectReference Include="..\..\src\RimManager.Integrations\RimManager.Integrations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Xunit.SkippableFact" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+</Project>

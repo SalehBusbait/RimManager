@@ -1,0 +1,38 @@
+# Line endings are a property of the project, not of whoever cloned it.
+#
+# Without this file, normalisation comes from each contributor's global git config —
+# on Windows that is usually core.autocrlf=true, which is why every commit from a
+# Windows machine emits "LF will be replaced by CRLF" warnings. Every tracked text
+# blob in this repo is already stored LF, so `text=auto` changes nothing on disk; it
+# just makes that the rule rather than an accident.
+* text=auto
+
+# NOT eol=crlf on the ModsConfig fixture, deliberately, in case anyone is tempted:
+# RimWorld's file is CRLF, but the fixture is only ever PARSED by the tests, never
+# byte-compared. The byte-exact guard (ModsConfigWriterTests) builds its expected
+# string from explicit \r\n escapes in C# source, so it is independent of how any
+# file on disk is stored — which is what makes it correct on Linux and macOS too.
+
+*.cs        text diff=csharp
+*.csproj    text
+*.slnx      text
+*.axaml     text
+*.xml       text
+*.json      text
+*.md        text
+*.yml       text
+*.py        text
+*.sh        text eol=lf
+
+# Binary: never normalise, never diff as text.
+*.png       binary
+*.ico       binary
+*.jpg       binary
+*.svg       text
+*.dll       binary
+*.exe       binary
+*.zip       binary
+*.db        binary
+
+# Screenshots are documentation, not source; keep them out of language statistics.
+assets/screenshots/** linguist-documentation

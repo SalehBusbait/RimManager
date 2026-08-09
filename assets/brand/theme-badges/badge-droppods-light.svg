@@ -1,0 +1,40 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Drop Pods Light</title>
+<defs><clipPath id="badge-dpl"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#C9DEEC"></rect>
+<g clip-path="url(#badge-dpl)">
+<circle cx="90" cy="74" r="19" fill="none" stroke="#EFC24F" stroke-width="1.5" opacity="0.45"></circle>
+<circle cx="90" cy="74" r="13" fill="#EFC24F"></circle>
+<ellipse cx="102" cy="90" rx="20" ry="7" fill="#FFFFFF" opacity="0.85"></ellipse>
+<ellipse cx="88" cy="87" rx="12" ry="5.5" fill="#FFFFFF" opacity="0.85"></ellipse>
+<ellipse cx="168" cy="64" rx="16" ry="6" fill="#FFFFFF" opacity="0.7"></ellipse>
+<ellipse cx="98" cy="148" rx="13" ry="5" fill="#FFFFFF" opacity="0.6"></ellipse>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#7FA8B8" stroke-width="1.5" opacity=".35"></circle>
+<circle cx="160" cy="470" r="260" fill="#86A65E"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#5E7A40" stroke-width="2.5"></circle>
+<path d="M84 232 L100 216 L116 232 Z" fill="#66854A"></path>
+<path d="M172 226 L192 208 L212 226 Z" fill="#66854A"></path>
+<circle cx="234" cy="182" r="1.4" fill="#5E7A8C" opacity="0.35"></circle>
+<circle cx="150" cy="168" r="1.2" fill="#5E7A8C" opacity="0.3"></circle>
+<g transform="translate(120,152) rotate(25)">
+<line x1="0" y1="-32" x2="0" y2="-78" stroke="#E07A3C" stroke-width="3" stroke-linecap="round" opacity="0.35"></line>
+<polygon points="-6,-14 6,-14 0,-34" fill="#E07A3C"></polygon>
+<polygon points="-3.5,-14 3.5,-14 0,-26" fill="#F0A94B"></polygon>
+<rect x="-8" y="-14" width="16" height="26" rx="7" fill="#76838E"></rect>
+<rect x="-8" y="-3" width="16" height="5" fill="#4E5A64"></rect>
+</g><g transform="translate(162,120) rotate(25)">
+<line x1="0" y1="-32" x2="0" y2="-78" stroke="#E07A3C" stroke-width="3" stroke-linecap="round" opacity="0.35"></line>
+<polygon points="-6,-14 6,-14 0,-34" fill="#E07A3C"></polygon>
+<polygon points="-3.5,-14 3.5,-14 0,-26" fill="#F0A94B"></polygon>
+<rect x="-8" y="-14" width="16" height="26" rx="7" fill="#8A97A2"></rect>
+<rect x="-8" y="-3" width="16" height="5" fill="#4E5A64"></rect>
+</g><g transform="translate(204,142) rotate(25)">
+<line x1="0" y1="-32" x2="0" y2="-78" stroke="#E07A3C" stroke-width="3" stroke-linecap="round" opacity="0.35"></line>
+<polygon points="-6,-14 6,-14 0,-34" fill="#E07A3C"></polygon>
+<polygon points="-3.5,-14 3.5,-14 0,-26" fill="#F0A94B"></polygon>
+<rect x="-8" y="-14" width="16" height="26" rx="7" fill="#76838E"></rect>
+<rect x="-8" y="-3" width="16" height="5" fill="#4E5A64"></rect>
+</g>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#9DB8CA" stroke-width="2"></rect>
+</svg>

@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RimManager.App.ViewModels"
+             x:Class="RimManager.App.Views.Shell.ModChangesStripView"
+             x:DataType="vm:MainWindowViewModel"
+             IsVisible="{Binding ShowModRootStrip}">
+  <!--
+    N5a4 · a mod folder appeared or disappeared while the window was open.
+
+    T5 put it on the shared strip band (S-STRIPS): info tone with the folder-delta
+    identity icon — nothing is wrong, mods were installed, which is the ordinary
+    thing a person does with a mod manager open.
+
+    It DETECTS; it does not rescan. ReloadAsync clears both panes, rebuilds every row
+    as a new object - so selection, Mod Info and scroll go - and discards the undo
+    stack. Worse, a reload landing in the SerialWriter flush window rebuilds the panes
+    from the pre-edit file and silently reverts an unsaved drag. So Rescan is the
+    user's press, at a moment they choose, and it drains the writer first.
+
+    Counts, never "changes detected". The number is the whole value: a notice that
+    cannot say how much changed leaves the user to go and look, which is what they
+    were doing before it existed.
+  -->
+  <Border Classes="strip info" AutomationProperties.Name="Mod folders changed">
+    <Grid ColumnDefinitions="Auto,10,Auto,8,*,10,Auto,4,Auto">
+
+      <PathIcon Grid.Column="0" Classes="stripIcon" Data="{StaticResource RmIconFolderDelta}"
+                Width="13" Height="13" VerticalAlignment="Center" />
+
+      <TextBlock Grid.Column="2" Text="{Binding ModRootNoticeText}"
+                 FontSize="{DynamicResource RmFontSizeBody}" FontWeight="SemiBold"
+                 Foreground="{DynamicResource RmTextPrimaryBrush}"
+                 VerticalAlignment="Center" />
+
+      <TextBlock Grid.Column="4"
+                 Text="Rescan to pick them up — your order, selection and undo stay untouched until you do."
+                 Classes="small sec" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                 ToolTip.Tip="Rescan to pick them up. Your load order, selection and undo history are untouched until you do." />
+
+      <Button Grid.Column="6" Classes="stripPrimary" Content="Rescan"
+              Command="{Binding RescanModFoldersCommand}" VerticalAlignment="Center" />
+
+      <Button Grid.Column="8" Classes="affordance" Padding="4" VerticalAlignment="Center"
+              Command="{Binding DismissModRootNoticeCommand}"
+              AutomationProperties.Name="Dismiss the mod-folder notice">
+        <PathIcon Data="{StaticResource RmIconClose}" Width="10" Height="10" />
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

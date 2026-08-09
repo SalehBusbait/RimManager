@@ -1,0 +1,116 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Theme-INVARIANT metrics: band heights, the type scale, spacing and fonts.
+    Light and dark differ only in colour (3g) — a geometry that changes between
+    themes means the token set is wrong, so none of these live in Tokens.*.axaml.
+
+    Every number is from the accepted design (README §1a and
+    §Spacing & radius; SCREENS.md for the dock). All values are DIPs.
+  -->
+
+  <!-- ===================== window bands (1a, exact) ====================== -->
+  <x:Double x:Key="RmMenuBarHeight">28</x:Double>
+  <x:Double x:Key="RmToolbarHeight">36</x:Double>
+  <x:Double x:Key="RmCommitBarHeight">44</x:Double>
+  <x:Double x:Key="RmStatusBarHeight">24</x:Double>
+  <!-- Total chrome with the dock closed: 28+36+26+24 = 114px. -->
+
+  <!-- ============================== panes ================================ -->
+  <x:Double x:Key="RmPaneHeaderHeight">26</x:Double>
+  <x:Double x:Key="RmPaneFooterHeight">30</x:Double>
+  <x:Double x:Key="RmColumnHeaderHeight">22</x:Double>
+  <x:Double x:Key="RmSplitterWidth">5</x:Double>
+  <!-- Taller since the preview started FITTING rather than filling (O21): a whole
+       image needs more room than an excerpt did. -->
+  <x:Double x:Key="RmModInfoPreviewHeight">160</x:Double>
+
+  <!-- ============================== rows ================================= -->
+  <!-- RmRowHeight is THE density switch: one resource write (20 <-> 26) re-lays
+       out every list in the app. Compact 20 is the default; comfortable is 26.
+       Nothing between (non-negotiable #10). Never Height="Auto" on a row —
+       fixed heights are what make virtualization exact. -->
+  <x:Double x:Key="RmRowHeight">20</x:Double>
+  <x:Double x:Key="RmRowHeightCompact">20</x:Double>
+  <x:Double x:Key="RmRowHeightComfortable">26</x:Double>
+  <!-- The exception #10 does not cover: below 900px (2k) rows are 24. That is not a
+       third density — it is not offered, not persisted and not reachable from the
+       density control. It is the row height of a layout that has ONE list doing the
+       work of two, and 2k specifies it. The general rule and the width-specific one
+       disagree; the more specific, later spec wins, as it did for the dock's 22/24
+       table rows. -->
+  <x:Double x:Key="RmRowHeightNarrow">24</x:Double>
+  <!-- Separators are 22 regardless of density (1f). -->
+  <x:Double x:Key="RmSeparatorRowHeight">22</x:Double>
+  <!-- The 3px tag-stripe tokens are GONE (UI audit): the stripe retired in T3 for
+       the pill zone, and the tokens sat consumed by nothing. -->
+  <x:Double x:Key="RmSourceBadgeSize">14</x:Double>
+
+  <!-- ========================= dock (SCREENS.md) ========================= -->
+  <x:Double x:Key="RmDockStripHeight">26</x:Double>
+  <!-- 36, not SCREENS.md's 32 (O4, owner's call): at 32 the toolbar's own padding left
+       a 22px button 5px of air, and the row read as cramped against the table header
+       beneath it. The deviation is one row per tab and is recorded in UI_AUDIT_2. -->
+  <x:Double x:Key="RmDockToolbarHeight">36</x:Double>
+  <x:Double x:Key="RmDockFooterHeight">24</x:Double>
+  <!-- SCREENS.md §"one skeleton, six tabs" says 22 header / 24 body. README's
+       component spec says 20/22; the dock-specific spec wins. -->
+  <x:Double x:Key="RmDockTableHeaderHeight">22</x:Double>
+  <x:Double x:Key="RmDockTableRowHeight">24</x:Double>
+
+  <!-- ============================ controls =============================== -->
+  <x:Double x:Key="RmToolbarControlHeight">24</x:Double>
+  <x:Double x:Key="RmQuietButtonHeight">22</x:Double>
+  <x:Double x:Key="RmMenuItemHeight">24</x:Double>
+  <x:Double x:Key="RmSettingsRailWidth">172</x:Double>
+  <!-- The 20px badge on a Settings ▸ Integrations card. Bigger than the 14px row badge
+       (RmSourceBadgeSize) because a card line is not a 20px list row — measured off 2g. -->
+  <x:Double x:Key="RmIntegrationBadgeSize">20</x:Double>
+
+  <!-- The adaptive breakpoints (1150/900) and the drag constants live as code
+       consts beside the behaviour they gate (Breakpoints.cs, MainWindow.axaml.cs)
+       — the token twins here were read by nothing (UI audit) and are gone. -->
+
+  <!-- ======================= drag contract (3a) ========================== -->
+  <x:Double x:Key="RmDragSourceOpacity">0.35</x:Double>
+  <x:Double x:Key="RmDragGhostOpacity">0.94</x:Double>
+
+  <!-- =========================== type scale ============================== -->
+  <x:Double x:Key="RmFontSizeMicro">9</x:Double>  <!-- column headers, caps micro labels -->
+  <x:Double x:Key="RmFontSizeMono">10</x:Double>  <!-- packageId, index, version, flags   -->
+  <x:Double x:Key="RmFontSizeSmall">11</x:Double> <!-- chips, footers, status bar, hints  -->
+  <x:Double x:Key="RmFontSizeBody">12</x:Double>  <!-- BODY DEFAULT: names, menus, buttons -->
+  <x:Double x:Key="RmFontSizeTitle">14</x:Double> <!-- mod-info title, section headings   -->
+  <x:Double x:Key="RmFontSizePage">19</x:Double>  <!-- first-run / dialog page titles only -->
+
+  <!-- ============================== fonts ================================ -->
+  <!-- Inter is the confirmed product font, registered by .WithInterFont() in
+       Program.cs. The mono role is shipped deliberately per platform rather than
+       left to the default: Consolas (Windows), SF Mono/Menlo (macOS),
+       DejaVu Sans Mono (Linux). Mono is what makes a 6-char flag string and a
+       packageId column scannable. -->
+  <FontFamily x:Key="RmFontUi">Inter</FontFamily>
+  <FontFamily x:Key="RmFontMono">Cascadia Mono,Consolas,SF Mono,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+
+  <!-- ======================= spacing and radius ========================== -->
+  <!-- 4px grid. Hard rule: no padding above 12px inside a pane; 16-24px only in
+       dialogs. Radius: 2 badges/inline chips, 3 buttons/inputs/tag chips,
+       5-6 cards/dialogs/flyouts. -->
+  <CornerRadius x:Key="RmRadiusBadge">2</CornerRadius>
+  <CornerRadius x:Key="RmRadiusControl">3</CornerRadius>
+  <!-- 5 for the flyout shell, per 3f, which is the one place the design names a radius
+       between control and card. It happens to equal what Fluent's MenuFlyoutPresenter
+       already used — the only value in that template we did NOT have to replace. -->
+  <CornerRadius x:Key="RmRadiusFlyout">5</CornerRadius>
+  <CornerRadius x:Key="RmRadiusCard">6</CornerRadius>
+
+  <!-- Scrollbars (UI-9). Fluent ships 16px with an arrow button at each end; the
+       measured-minimums table at the top of Controls.axaml records MinWidth/MinHeight 16
+       on ScrollBar, so BOTH have to be reset or the declared size does nothing. 10px of
+       track carrying a 4px thumb, growing to the full 10 under the pointer. -->
+  <x:Double x:Key="RmScrollBarThickness">10</x:Double>
+  <x:Double x:Key="RmScrollThumbThickness">4</x:Double>
+  <CornerRadius x:Key="RmRadiusScrollThumb">3</CornerRadius>
+
+  <Thickness x:Key="RmPanePadding">8,0</Thickness>
+</ResourceDictionary>

@@ -1,0 +1,59 @@
+<Project>
+
+  <!--
+    Shared build settings for every project in the solution.
+    Spikes opt out of the strict settings individually (see /spikes).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- The one version, for every assembly (N9, set at N12). The SDK stamps the git
+         commit into InformationalVersion on top of this ("1.0.0-beta.1+<sha>"), which
+         is what About, the diagnostics bundle and the CLI's version flag all read — so
+         a build is identified by commit even though every build on this line shares
+         the number. Deleting this line does NOT remove the version; it silently
+         reverts every assembly to the SDK's default 1.0.0, which is why a source
+         check pins its presence (VersionStoryTests).
+
+         A SemVer PRE-RELEASE, not 0.9.0 and not 1.0.0: the first release is a beta,
+         and "1.0.0-beta.1" says both halves of that — the shape 1.0.0 will take, and
+         that this is not it yet. It sorts before 1.0.0 by SemVer rules, so nothing
+         later has to be renumbered.
+
+         AssemblyVersion and FileVersion cannot carry a suffix and the SDK drops it for
+         them (both become 1.0.0.0). Only InformationalVersion keeps the whole string,
+         which is exactly the one every user-facing surface reads. -->
+    <Version>1.0.0-beta.1</Version>
+
+    <!-- N12 · the licence, declared where the build can carry it rather than only in a
+         file at the root. MIT: the permissive case won on the argument that nobody
+         embeds a mod manager, so the adoption copyleft would cost is theoretical while
+         the friction it adds is not. -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Saleh Busubait</Copyright>
+    <Authors>Saleh Busubait</Authors>
+    <Product>RimManager</Product>
+    <PackageProjectUrl>https://github.com/SalehBusbait/RimManager</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SalehBusbait/RimManager</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Determinism: identical source must produce identical build output. -->
+    <Deterministic>true</Deterministic>
+
+    <!-- Quality gate: warnings fail the build in CI. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Central Package Management (see Directory.Packages.props). -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

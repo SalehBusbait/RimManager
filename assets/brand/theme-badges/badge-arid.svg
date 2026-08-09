@@ -1,0 +1,27 @@
+<svg viewBox="60 50 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>RimManager logo — Arid Rim theme</title>
+<defs><clipPath id="badge-arid"><rect x="60" y="50" width="200" height="200" rx="46"></rect></clipPath></defs>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="#D9B984"></rect>
+<g clip-path="url(#badge-arid)">
+<circle cx="216" cy="94" r="21" fill="none" stroke="#C15A2E" stroke-width="1.5" opacity="0.3"></circle>
+<circle cx="216" cy="94" r="15" fill="#C15A2E"></circle>
+<path d="M88 108 Q93 103 98 108 Q103 103 108 108" fill="none" stroke="#6B4A26" stroke-width="1.6" stroke-linecap="round" opacity="0.55"></path>
+<path d="M184 126 Q188 122 192 126 Q196 122 200 126" fill="none" stroke="#6B4A26" stroke-width="1.6" stroke-linecap="round" opacity="0.45"></path>
+<circle cx="160" cy="470" r="272" fill="none" stroke="#8A5E30" stroke-width="1.5" opacity=".35"></circle>
+<circle cx="160" cy="470" r="260" fill="#B5854E"></circle>
+<circle cx="160" cy="470" r="260" fill="none" stroke="#8A5E30" stroke-width="2.5"></circle>
+<path d="M70 230 L94 214 L118 230 Z" fill="#A87944"></path>
+<path d="M192 228 L200 206 L226 206 L234 228 Z" fill="#9C6B38"></path>
+<line x1="200" y1="206" x2="226" y2="206" stroke="#C89A5F" stroke-width="2"></line>
+<circle cx="76" cy="160" r="1.2" fill="#8A6238" opacity="0.4"></circle>
+<circle cx="234" cy="178" r="1.4" fill="#8A6238" opacity="0.4"></circle>
+<circle cx="146" cy="86" r="1.2" fill="#8A6238" opacity="0.35"></circle>
+<rect x="110" y="178" width="10" height="46" rx="5" fill="#55663F"></rect>
+<rect x="96" y="190" width="8" height="16" rx="4" fill="#55663F"></rect>
+<rect x="100" y="198" width="10" height="7" fill="#55663F"></rect>
+<rect x="126" y="172" width="8" height="16" rx="4" fill="#55663F"></rect>
+<rect x="118" y="180" width="10" height="7" fill="#55663F"></rect>
+<circle cx="115" cy="175" r="2.5" fill="#C15A2E"></circle>
+</g>
+<rect x="60" y="50" width="200" height="200" rx="46" fill="none" stroke="#A87C48" stroke-width="2"></rect>
+</svg>

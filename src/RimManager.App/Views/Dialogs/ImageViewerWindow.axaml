@@ -1,0 +1,65 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RimManager.App.ViewModels"
+        x:Class="RimManager.App.Views.Dialogs.ImageViewerWindow"
+        x:DataType="vm:ImageViewerViewModel"
+        Title="{Binding Title}"
+        Width="664" Height="408"
+        MinWidth="280" MinHeight="200"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource RmBackgroundCanvasBrush}">
+  <!--
+    N8 · the image the Mod Info crop is a crop OF. Non-modal like every reference
+    window (#4); read-only; Escape closes. Sized to the image before it opens —
+    ImageViewerLayout.Fit, which never scales up — and resizable after, where
+    StretchDirection=DownOnly keeps enlarging the window from enlarging the pixels.
+    The XAML Width/Height are only the fallback for a screen that cannot be measured;
+    they match the median 640×360 preview so the common case opens without a resize.
+  -->
+  <DockPanel>
+    <!-- T6, S-VIEWER: the 40px TITLED header band the other reference windows use
+         (it shipped 32px and title-less — the four windows should share one
+         anatomy), then Fit / 1:1 segments + a zoom line that states what Fit is
+         actually showing. Fit never upscales; 1:1 shows the file's real pixels
+         behind scrollbars. -->
+    <Border DockPanel.Dock="Top" Height="40" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,10,Auto,10,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding Title}" Classes="title"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Border Grid.Column="2" Classes="segmented" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal">
+            <RadioButton Classes="segment" GroupName="viewerZoom" Content="Fit"
+                         IsChecked="{Binding IsFit, Mode=TwoWay}" />
+            <RadioButton Classes="segment" GroupName="viewerZoom" Content="1:1"
+                         IsChecked="{Binding IsOneToOne, Mode=TwoWay}" />
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Column="4" Text="{Binding ZoomText}" Classes="mono ter"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Height="{DynamicResource RmDockFooterHeight}" Padding="12,0"
+            Background="{DynamicResource RmBackgroundAltBrush}"
+            BorderBrush="{DynamicResource RmBorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <!-- Name, pixel size, bytes — each read from the file, none assumed. -->
+      <TextBlock Text="{Binding FooterText}" Classes="mono ter" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+    </Border>
+
+    <Panel x:Name="ViewerBody">
+      <Image Source="{Binding Image}" Stretch="Uniform" StretchDirection="DownOnly"
+             Margin="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+             IsVisible="{Binding IsFit}" />
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                    IsVisible="{Binding IsOneToOne}">
+        <!-- Stretch=None: the file's pixels, one for one. The margin is on the
+             CONTENT, never ScrollViewer.Padding (LayoutTrapTests). -->
+        <Image Source="{Binding Image}" Stretch="None" Margin="12"
+               HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+</Window>

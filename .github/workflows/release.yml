@@ -1,0 +1,173 @@
+name: Release
+
+# Tag-triggered. `git tag v1.0.0-beta.1 && git push origin v1.0.0-beta.1` builds every
+# platform and publishes a GitHub release with the archives attached.
+#
+# Builds are SELF-CONTAINED: a RimWorld player is not going to install a .NET SDK to run
+# a mod manager, so the runtime ships inside the archive. That costs about 70 MB per
+# platform and is the right trade for the audience.
+#
+# Every runtime identifier is cross-published from one Linux runner. That works because
+# nothing here is natively compiled or AOT'd — .NET emits the target's apphost from any
+# host — so four platforms cost one runner instead of three.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build the archives but do not create a release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: verify the tag matches the build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The tag and <Version> are two places to say one thing, so they can disagree.
+      # A binary whose About box reports a different version from the release it came
+      # from is a bug report nobody can act on — fail here instead.
+      - name: Check tag against Directory.Build.props
+        id: check
+        run: |
+          declared=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tagged="${GITHUB_REF#refs/tags/v}"
+            if [ "$declared" != "$tagged" ]; then
+              echo "::error::Tag v$tagged does not match <Version>$declared</Version> in Directory.Build.props."
+              exit 1
+            fi
+          fi
+          echo "version=$declared" >> "$GITHUB_OUTPUT"
+          # SemVer: a hyphen means a pre-release, which is what 1.0.0-beta.1 is.
+          case "$declared" in
+            *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  test:
+    name: test before shipping
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test RimManager.slnx -c Release
+
+  build:
+    name: ${{ matrix.rid }}
+    needs: [verify, test]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64,   archive: zip }
+          - { rid: linux-x64, archive: tar }
+          - { rid: osx-x64,   archive: tar }
+          - { rid: osx-arm64, archive: tar }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # SEPARATE archives, and the reason is a trap this build fell into once.
+      #
+      # The app's AssemblyName is `RimManager` and the CLI's is `rimmanager`. On this
+      # Linux runner those are two files; on the Windows and macOS machines that will
+      # actually download them, they are ONE. Publishing both into a single directory
+      # silently left whichever ran second — a release containing the CLI and no GUI,
+      # built perfectly green, because the collision cannot happen on the runner. So
+      # they ship as two archives and never share a directory.
+      - name: Publish
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          app="stage/RimManager-$VERSION-${{ matrix.rid }}"
+          cli="stage/RimManager-cli-$VERSION-${{ matrix.rid }}"
+
+          # Not trimmed and not single-file: Avalonia resolves a good deal by
+          # reflection, and neither is worth risking on a release nobody can test
+          # on every platform first.
+          dotnet publish src/RimManager.App -c Release -r ${{ matrix.rid }} \
+            --self-contained true -o "$app"
+          dotnet publish src/RimManager.Cli -c Release -r ${{ matrix.rid }} \
+            --self-contained true -o "$cli"
+
+          for d in "$app" "$cli"; do
+            cp LICENSE THIRD-PARTY-NOTICES.md README.md "$d/"
+
+            # Half the published output is debug symbols, and 100 MB of it is native
+            # PDBs from SkiaSharp and HarfBuzz that could not help anyone here. Our
+            # OWN symbols stay: this is a beta, bug reports matter, and a stack trace
+            # without line numbers is most of a report thrown away for ~1 MB.
+            find "$d" -name '*.pdb' ! -name 'RimManager*.pdb' ! -name 'rimmanager*.pdb' -delete
+          done
+
+          # Prove the GUI is in the GUI archive. If the collision ever returns, this
+          # is the line that catches it rather than a user.
+          test -f "$app/RimManager" || test -f "$app/RimManager.exe" \
+            || { echo "::error::The app archive has no RimManager executable."; exit 1; }
+
+      - name: Archive
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for name in "RimManager-$VERSION-${{ matrix.rid }}" "RimManager-cli-$VERSION-${{ matrix.rid }}"; do
+            if [ "${{ matrix.archive }}" = "zip" ]; then
+              (cd stage && zip -qr "../dist/$name.zip" "$name")
+            else
+              # The executable bit does not survive a zip, and macOS and Linux need it.
+              chmod +x "stage/$name/RimManager" "stage/$name/rimmanager" 2>/dev/null || true
+              tar -czf "dist/$name.tar.gz" -C stage "$name"
+            fi
+          done
+          ls -lh dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: dist/*
+
+  release:
+    name: publish the release
+    needs: [verify, build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          flags=""
+          if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then
+            flags="--prerelease"
+          fi
+          gh release create "${GITHUB_REF#refs/tags/}" dist/* \
+            --title "RimManager $VERSION" \
+            --generate-notes \
+            $flags

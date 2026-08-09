@@ -1,0 +1,55 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:RimManager.App.Converters"
+             xmlns:th="using:RimManager.App.Themes"
+             x:Class="RimManager.App.App"
+             RequestedThemeVariant="Default">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <!-- Ten themes, one token vocabulary (design handoff v2). Every theme is a
+           full citizen (amended non-negotiable #9): identical key sets across all
+           ten dictionaries, ThemeTokenTests fails the build if any drifts.
+           The Drop Pods pair rides the built-in Light/Dark keys, which is what
+           makes "follow system" (ThemeVariant.Default) resolve to the pair with
+           no code; the eight flavoured themes are custom variants from
+           ThemeCatalog, each inheriting Dark so Fluent internals fall back
+           sanely. Switching is Application.RequestedThemeVariant; no restart.
+           The dictionaries are GENERATED — assets/themes/generate-tokens.py. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceInclude x:Key="Light" Source="avares://RimManager/Themes/Tokens.DropPodsLight.axaml" />
+        <ResourceInclude x:Key="Dark" Source="avares://RimManager/Themes/Tokens.DropPodsDark.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.TribalVariant}" Source="avares://RimManager/Themes/Tokens.Tribal.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.AridVariant}" Source="avares://RimManager/Themes/Tokens.Arid.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.IceVariant}" Source="avares://RimManager/Themes/Tokens.Ice.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.ToxicVariant}" Source="avares://RimManager/Themes/Tokens.Toxic.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.MechVariant}" Source="avares://RimManager/Themes/Tokens.Mech.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.RoyaltyVariant}" Source="avares://RimManager/Themes/Tokens.Royalty.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.AnomalyVariant}" Source="avares://RimManager/Themes/Tokens.Anomaly.axaml" />
+        <ResourceInclude x:Key="{x:Static th:ThemeCatalog.GlitterVariant}" Source="avares://RimManager/Themes/Tokens.Glitter.axaml" />
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!-- Shared converters live at app level: a UserControl is constructed before
+           it is attached to the tree, so it cannot resolve a StaticResource declared
+           on the window that hosts it. -->
+      <conv:EqualsConverter x:Key="IsIndex" />
+      <conv:ToggleTypeConverter x:Key="ToggleType" />
+
+      <ResourceDictionary.MergedDictionaries>
+        <!-- Theme-invariant: geometry never changes between light and dark. -->
+        <ResourceInclude Source="avares://RimManager/Themes/Metrics.axaml" />
+        <ResourceInclude Source="avares://RimManager/Themes/Icons.axaml" />
+        <!-- The one dock skeleton, shared by all six tabs. A ControlTheme is keyed
+             by type, so it has to be resolvable from the application — a window-level
+             dictionary would not serve a DockTabShell built inside a UserControl. -->
+        <ResourceInclude Source="avares://RimManager/Views/Dock/DockShell.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://RimManager/Themes/Controls.axaml" />
+  </Application.Styles>
+
+</Application>
