@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in RimManager misbehaved
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The line from Help ▸ About — it includes the version and commit.
+      placeholder: 1.0.0-beta.1 (50b66ae) · Avalonia 12.1.0 · .NET 10.0.10 · win-x64
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: activity-log
+    attributes:
+      label: Activity log
+      description: >-
+        Open the Activity tab in the bottom dock, press "Copy all", and paste here.
+        This is usually the difference between a fixable report and a mystery.
+      render: text
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Windows 11 / macOS 15 / Ubuntu 24.04, Steam or GOG install
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, the mod involved, how repeatable it is.

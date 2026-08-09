@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # FluentAssertions is pinned to the 7.x line deliberately: releases from
+      # 8.0 onward are published under a commercial licence. A major-version
+      # bump here would be a licensing change, not a dependency update.
+      - dependency-name: FluentAssertions
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
