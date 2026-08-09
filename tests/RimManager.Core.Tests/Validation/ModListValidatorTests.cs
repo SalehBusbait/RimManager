@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using FluentAssertions;
 using RimManager.Core.Domain;
+using RimManager.Core.Rules;
 using RimManager.Core.Sorting;
 using RimManager.Core.Validation;
 using Xunit;
@@ -104,6 +105,45 @@ public sealed class ModListValidatorTests
 
         Validator.Validate(active, NoExpansions, "1.6").Issues
             .Should().NotContain(i => i.Code == IssueCodes.OrderViolated);
+    }
+
+    /// <summary>
+    /// The validator sees the same effective rules the sorter does. A community rule
+    /// the user disabled must stop warning — a warning about a rule you switched off
+    /// is the editor telling you it ignored you.
+    /// </summary>
+    [Fact]
+    public void A_disabled_rule_stops_warning()
+    {
+        var active = new[] { Mod("b.mod"), Mod("a.mod") };
+        var community = new LoadOrderRules(
+            new Dictionary<ModId, ModRules>
+            {
+                [ModId.From("a.mod")] = new ModRules { LoadBefore = [new RuleRef(ModId.From("b.mod"))] },
+            }.ToImmutableDictionary());
+
+        Validator.Validate(active, NoExpansions, "1.6", community).Issues
+            .Should().ContainSingle(i => i.Code == IssueCodes.OrderViolated,
+                "sanity: the rule warns while it is on");
+
+        var overrides = RuleOverrides.Empty
+            .Disable(ModId.From("a.mod"), ModId.From("b.mod"));
+
+        Validator.Validate(active, NoExpansions, "1.6", community, overrides: overrides).Issues
+            .Should().NotContain(i => i.Code == IssueCodes.OrderViolated);
+    }
+
+    /// <summary>A rule the user wrote warns when the order violates it.</summary>
+    [Fact]
+    public void A_violated_user_rule_warns()
+    {
+        var active = new[] { Mod("b.mod"), Mod("a.mod") };
+        var overrides = RuleOverrides.Empty
+            .WithUserRule(new UserRule(ModId.From("a.mod"), ModId.From("b.mod")));
+
+        Validator.Validate(active, NoExpansions, "1.6", overrides: overrides).Issues
+            .Should().ContainSingle(i => i.Code == IssueCodes.OrderViolated,
+                "a rule you wrote yourself is the one you most expect the panel to hold you to");
     }
 
     [Fact]

@@ -95,7 +95,11 @@ public sealed partial class MainWindowViewModel
             activeMods, _knownExpansions, _gameMajorMinor, _communityRules, inactiveMods,
             // N7 · the two Mlie databases: known-good suppresses unsupported-version
             // for listed mods; replacements add the intrinsic Replaceable finding.
-            _knownGood, _replacements.Replacements);
+            _knownGood, _replacements.Replacements,
+            // The rule editor's output rides every validation the same way it rides
+            // every sort: a rule the user disabled must stop warning, and one they
+            // wrote must start.
+            overrides: _ruleOverrides);
 
         Warnings.Clear();
         foreach (var issue in report.Issues) Warnings.Add(issue);

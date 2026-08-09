@@ -827,7 +827,8 @@ public sealed partial class MainWindowViewModel
             .ToDictionary(g => g.Key, g => g.Count());
 
         var domain = _byId.Values.ToList();
-        var sorted = new ModSorter().Sort(domain, RuleGraphBuilder.Build(domain, _communityRules));
+        var sorted = new ModSorter().Sort(
+            domain, RuleGraphBuilder.Build(domain, _communityRules, overrides: _ruleOverrides));
 
         wizard.WorkshopItemCount = sources.GetValueOrDefault(ModSource.Workshop);
         wizard.Import = new FirstRunImport(

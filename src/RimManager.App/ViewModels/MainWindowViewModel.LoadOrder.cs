@@ -677,7 +677,8 @@ public sealed partial class MainWindowViewModel
 
         var domain = mods.Select(m => m.Mod).ToList();
         var result = new ModSorter().Sort(
-            domain, RuleGraphBuilder.Build(domain, _communityRules), SelectedModlist?.Suppressions);
+            domain, RuleGraphBuilder.Build(domain, _communityRules, overrides: _ruleOverrides),
+            SelectedModlist?.Suppressions);
         var byId = mods.ToDictionary(m => m.PackageId);
 
         ActiveRows.Clear();
@@ -987,7 +988,7 @@ public sealed partial class MainWindowViewModel
         await SnapshotBeforeSortAsync();
 
         var domainMods = mods.Select(m => m.Mod).ToList();
-        var rules = RuleGraphBuilder.Build(domainMods, _communityRules);
+        var rules = RuleGraphBuilder.Build(domainMods, _communityRules, overrides: _ruleOverrides);
         // The modlist's pinned edges (R1b / "Accept dropped edge") ride every sort:
         // without them a pinned cycle re-decides from scratch, which is the exact
         // behaviour pinning exists to end.

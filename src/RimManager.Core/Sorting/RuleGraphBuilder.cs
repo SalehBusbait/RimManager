@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using RimManager.Core.Domain;
+using RimManager.Core.Rules;
 
 namespace RimManager.Core.Sorting;
 
@@ -11,10 +12,19 @@ namespace RimManager.Core.Sorting;
 /// </summary>
 public static class RuleGraphBuilder
 {
+    /// <param name="overrides">
+    /// The rule editor's output: rules the user wrote, and community rules they
+    /// switched off. Applied AFTER the merge, so a disabled pair drops whichever
+    /// representative won the merge and a user rule replaces it outright — "yours
+    /// always win" composed at the one point every consumer passes through. This is
+    /// deliberately a parameter here rather than a wrapper at the call sites: the
+    /// validator builds its own graph internally, and two compositions drift.
+    /// </param>
     public static RuleSet Build(
         IReadOnlyList<Mod> activeMods,
         LoadOrderRules? community = null,
-        LoadOrderRules? user = null)
+        LoadOrderRules? user = null,
+        RuleOverrides? overrides = null)
     {
         community ??= LoadOrderRules.Empty;
         user ??= LoadOrderRules.Empty;
@@ -27,6 +37,15 @@ public static class RuleGraphBuilder
         AddDbEdges(user.Rules, RuleSource.User, activeIds, raw);
 
         var edges = MergeEdges(raw);
+
+        if (overrides is { IsEmpty: false })
+        {
+            // Scope the user's edges the way every other source is scoped: a rule
+            // naming a mod that is not in this list must not order phantoms.
+            edges = [.. overrides.Apply(edges).Where(
+                e => activeIds.Contains(e.Before) && activeIds.Contains(e.After))];
+        }
+
         var (loadTop, loadBottom) = MergeTierHints(community, user, activeIds);
 
         return new RuleSet(edges, loadTop, loadBottom);

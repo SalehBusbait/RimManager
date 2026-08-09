@@ -14,7 +14,7 @@ in every `dotnet` command.
 
 ```bash
 dotnet build RimManager.slnx -c Release      # warnings are errors; must be 0/0
-dotnet test  RimManager.slnx -c Release      # 1,469 tests across three projects
+dotnet test  RimManager.slnx -c Release      # 1,477 tests across three projects
 dotnet test RimManager.slnx --filter "FullyQualifiedName~ModSorter"
 dotnet run --project src/RimManager.App      # the GUI
 ```
@@ -128,14 +128,14 @@ hand-written synthetic data and a test pins its size.
 
 ## Open defects
 
-- **The rule editor does not affect sorting.** `RuleGraphBuilder.Build` takes a `user`
-  argument that no call site in `src/` passes, and `RuleOverrides.Apply` has no production
-  caller. The editor persists rules and reports "Rules changed — sort to apply them", which
-  is not true. Either wire it through or remove the surface. The user override that *does*
-  work is `EdgeSuppressions`, pinned per modlist.
 - **`HistoryPresenter` carries labels for snapshot reasons nothing emits** — `drag`,
   `activate`, `deactivate`, `separator`, `import`. Only before-sort, apply, two drift
   captures and restore produce snapshots.
+
+(The rule editor's unwired overrides — formerly the first entry here — were wired in
+beta.2: `RuleGraphBuilder.Build` and `ModListValidator.Validate` both take a
+`RuleOverrides` and every hub call site passes `_ruleOverrides`, guarded by
+`RuleSourceParityTests`.)
 
 ## Where things live
 

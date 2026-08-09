@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using FluentAssertions;
 using RimManager.Core.Domain;
+using RimManager.Core.Rules;
 using RimManager.Core.Sorting;
 using Xunit;
 using static RimManager.Core.Tests.Sorting.SortFixtures;
@@ -95,5 +96,61 @@ public sealed class RuleGraphBuilderTests
 
         set.LoadTop.Should().ContainKey(ModId.From("x.m"));
         set.LoadBottom.Should().NotContainKey(ModId.From("x.m"));
+    }
+
+    // --- the rule editor's overrides, applied at the one point every consumer
+    //     passes through (they shipped unwired once; RuleSourceParityTests guards
+    //     the call sites, these guard the semantics) ---------------------------
+
+    [Fact]
+    public void A_disabled_community_rule_builds_no_edge()
+    {
+        var mods = new[] { Mod("a.a"), Mod("a.b") };
+        var community = Db(("a.b", new ModRules { LoadAfter = [new RuleRef(ModId.From("a.a"))] }));
+        var overrides = RuleOverrides.Empty.Disable(ModId.From("a.a"), ModId.From("a.b"));
+
+        RuleGraphBuilder.Build(mods, community, overrides: overrides)
+            .Edges.Should().BeEmpty("switching a rule off must actually switch it off");
+    }
+
+    [Fact]
+    public void A_user_rule_becomes_an_edge_with_user_provenance()
+    {
+        var mods = new[] { Mod("a.a"), Mod("a.b") };
+        var overrides = RuleOverrides.Empty
+            .WithUserRule(new UserRule(ModId.From("a.a"), ModId.From("a.b")));
+
+        var set = RuleGraphBuilder.Build(mods, overrides: overrides);
+
+        set.Edges.Should().ContainSingle();
+        set.Edges[0].Provenance.Source.Should().Be(RuleSource.User,
+            "the editor's promise is that yours are accent-marked and always win");
+    }
+
+    [Fact]
+    public void A_user_rule_about_an_absent_mod_orders_no_phantoms()
+    {
+        var mods = new[] { Mod("a.a") };
+        var overrides = RuleOverrides.Empty
+            .WithUserRule(new UserRule(ModId.From("a.a"), ModId.From("not.installed")));
+
+        RuleGraphBuilder.Build(mods, overrides: overrides).Edges.Should().BeEmpty(
+            "every other source is scoped to the active list, and the user's is no exception");
+    }
+
+    [Fact]
+    public void A_user_rule_survives_the_users_own_disable_of_the_same_pair()
+    {
+        var mods = new[] { Mod("a.a"), Mod("a.b") };
+        var community = Db(("a.b", new ModRules { LoadAfter = [new RuleRef(ModId.From("a.a"))] }));
+        var overrides = RuleOverrides.Empty
+            .Disable(ModId.From("a.a"), ModId.From("a.b"))
+            .WithUserRule(new UserRule(ModId.From("a.a"), ModId.From("a.b")));
+
+        var set = RuleGraphBuilder.Build(mods, community, overrides: overrides);
+
+        set.Edges.Should().ContainSingle(
+            "re-adding a rule you had switched off must not silently do nothing");
+        set.Edges[0].Provenance.Source.Should().Be(RuleSource.User);
     }
 }

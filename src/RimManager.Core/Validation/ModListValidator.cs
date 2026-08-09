@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using RimManager.Core.Domain;
 using RimManager.Core.ModDatabases;
+using RimManager.Core.Rules;
 using RimManager.Core.Sorting;
 
 namespace RimManager.Core.Validation;
@@ -46,6 +47,11 @@ public sealed class ModListValidator
     /// <see cref="ModDatabases.ReplacementMatcher"/>'s rules and gated to replacements
     /// that support the running version.
     /// </param>
+    /// <param name="overrides">
+    /// The rule editor's user rules and disabled community rules. The validator must
+    /// see the SAME effective rule set the sorter sees: without this, a rule the user
+    /// switched off keeps warning, and a rule they wrote never does.
+    /// </param>
     public ValidationReport Validate(
         IReadOnlyList<Mod> activeInOrder,
         IReadOnlyCollection<ModId> knownExpansions,
@@ -53,7 +59,8 @@ public sealed class ModListValidator
         LoadOrderRules? community = null,
         IReadOnlyList<Mod>? inactive = null,
         KnownGoodDatabase? knownGood = null,
-        ImmutableArray<ModReplacement> replacements = default)
+        ImmutableArray<ModReplacement> replacements = default,
+        RuleOverrides? overrides = null)
     {
         var issues = ImmutableArray.CreateBuilder<ValidationIssue>();
         var activeSet = activeInOrder.Select(m => m.PackageId).ToHashSet();
@@ -68,7 +75,7 @@ public sealed class ModListValidator
         // Relational: the active list only.
         CheckDependenciesAndDlc(activeInOrder, activeSet, known, installedInactive, issues);
         CheckIncompatibilities(activeInOrder, activeSet, issues);
-        CheckOrder(activeInOrder, community, issues);
+        CheckOrder(activeInOrder, community, overrides, issues);
 
         // Intrinsic: every installed mod, loaded or not.
         CheckVersions(activeInOrder, gameMajorMinor, knownGood, issues);
@@ -143,12 +150,13 @@ public sealed class ModListValidator
     }
 
     private static void CheckOrder(
-        IReadOnlyList<Mod> active, LoadOrderRules? community, ImmutableArray<ValidationIssue>.Builder issues)
+        IReadOnlyList<Mod> active, LoadOrderRules? community, RuleOverrides? overrides,
+        ImmutableArray<ValidationIssue>.Builder issues)
     {
         var position = new Dictionary<ModId, int>(active.Count);
         for (int i = 0; i < active.Count; i++) position[active[i].PackageId] = i;
 
-        var ruleSet = RuleGraphBuilder.Build(active, community);
+        var ruleSet = RuleGraphBuilder.Build(active, community, overrides: overrides);
         var sorted = new ModSorter().Sort(active, ruleSet);
 
         // Applied edges: the rule holds, so being out of order is a violation to fix.

@@ -78,4 +78,40 @@ public sealed class RuleSourceParityTests
                 "a rule graph built without them sorts by About.xml alone");
         }
     }
+
+    /// <summary>
+    /// The rule editor's output is the third rule source, and it fell into exactly the
+    /// trap this file exists for: the editor persisted overrides and posted "Rules
+    /// changed — sort to apply them" while no call site passed them, so the promise
+    /// shipped false. Optional parameter, compiles clean, launches fine.
+    /// </summary>
+    [Fact]
+    public void Every_rule_graph_the_hub_builds_is_given_the_users_overrides()
+    {
+        var calls = Regex.Matches(Hub, @"RuleGraphBuilder\.Build\([^)]*\)");
+
+        calls.Should().NotBeEmpty();
+
+        foreach (Match call in calls)
+        {
+            call.Value.Should().Contain("_ruleOverrides",
+                "a rule graph built without the editor's overrides makes the editor "
+                + "a settings page that changes nothing");
+        }
+    }
+
+    [Fact]
+    public void Every_validate_call_is_given_the_users_overrides()
+    {
+        var calls = Regex.Matches(Hub, @"\.Validate\((?:[^()]|\([^()]*\))*\)", RegexOptions.Singleline);
+
+        calls.Should().NotBeEmpty();
+
+        foreach (Match call in calls)
+        {
+            call.Value.Should().Contain("_ruleOverrides",
+                "a validator without the overrides keeps warning about rules the user "
+                + "disabled and never warns about rules they wrote");
+        }
+    }
 }

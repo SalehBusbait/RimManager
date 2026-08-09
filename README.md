@@ -23,7 +23,7 @@ Windows, macOS and Linux.
 
 > [!NOTE]
 > This is a pre-release. Version `1.0.0-beta.1` is in daily use against a 565-mod
-> installation and the pipeline carries 1,469 tests, but it has had one reviewer.
+> installation and the pipeline carries 1,477 tests, but it has had one reviewer.
 > Defect reports are welcome.
 
 ## Features
