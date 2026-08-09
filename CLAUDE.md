@@ -17,7 +17,6 @@ dotnet build RimManager.slnx -c Release      # warnings are errors; must be 0/0
 dotnet test  RimManager.slnx -c Release      # 1,469 tests across three projects
 dotnet test RimManager.slnx --filter "FullyQualifiedName~ModSorter"
 dotnet run --project src/RimManager.App      # the GUI
-dotnet run --project src/RimManager.Cli -- list
 ```
 
 Releases are tag-triggered: `git tag v1.0.0-beta.1 && git push origin v1.0.0-beta.1`
@@ -29,7 +28,9 @@ rebuilding; the exe locks otherwise.
 
 ## Architecture
 
-Data flows one direction. The CLI and the App are two thin shells over the same core.
+Data flows one direction. The App is a thin shell over a pure core. (A CLI twin
+existed until beta.2 and was retired as a product decision — the pattern to keep is
+that anything testable lives below the shell, not in it.)
 
 `Locators` (find the install via `libraryfolders.vdf`) → `Scanning.ModScanner` (parse
 `About.xml`, detect content, dedupe by packageId with source precedence) → `Sorting`
@@ -42,7 +43,6 @@ Data flows one direction. The CLI and the App are two thin shells over the same 
 | `RimManager.Storage` | The only place I/O happens. Repositories, `JsonDocumentStore`, the Cecil analyzer, the SQLite scan cache. |
 | `RimManager.Integrations` | The network and process edge: `HttpClientFetcher`, SteamCMD, Steamworks. |
 | `RimManager.App` | Avalonia. `MainWindowViewModel` is one class across ten partial files by surface, capped at 1,800 lines each by `HubShapeTests`. |
-| `RimManager.Cli` | Headless twin. Every GUI capability has a command. |
 
 ## Non-negotiable conventions
 
@@ -121,10 +121,6 @@ Two binding rules, both paid for in access violations:
 
 Both are guarded by `ChildProcessRoutingTests`, which also pins that every child marker is
 routed before `BuildAvaloniaApp`.
-
-**The app and the CLI must never share an output directory.** `AssemblyName` is
-`RimManager` and `rimmanager` — two files on Linux, one on Windows and macOS. They ship as
-separate archives, and the release workflow asserts the app archive contains the app.
 
 **Never bundle the Community Rules Database.** It carries no licence, so redistribution is
 not permitted. Fetching it at runtime is what it is published for. The committed fixture is

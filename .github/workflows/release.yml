@@ -105,44 +105,31 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # SEPARATE archives, and the reason is a trap this build fell into once.
-      #
-      # The app's AssemblyName is `RimManager` and the CLI's is `rimmanager`. On this
-      # Linux runner those are two files; on the Windows and macOS machines that will
-      # actually download them, they are ONE. Publishing both into a single directory
-      # silently left whichever ran second — a release containing the CLI and no GUI,
-      # built perfectly green, because the collision cannot happen on the runner. So
-      # they ship as two archives and never share a directory.
       - name: Publish
         env:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
           app="stage/RimManager-$VERSION-${{ matrix.rid }}"
-          cli="stage/RimManager-cli-$VERSION-${{ matrix.rid }}"
 
           # Not trimmed and not single-file: Avalonia resolves a good deal by
           # reflection, and neither is worth risking on a release nobody can test
           # on every platform first.
           dotnet publish src/RimManager.App -c Release -r ${{ matrix.rid }} \
             --self-contained true -o "$app"
-          dotnet publish src/RimManager.Cli -c Release -r ${{ matrix.rid }} \
-            --self-contained true -o "$cli"
 
-          for d in "$app" "$cli"; do
-            cp LICENSE THIRD-PARTY-NOTICES.md README.md "$d/"
+          cp LICENSE THIRD-PARTY-NOTICES.md README.md "$app/"
 
-            # Half the published output is debug symbols, and 100 MB of it is native
-            # PDBs from SkiaSharp and HarfBuzz that could not help anyone here. Our
-            # OWN symbols stay: this is a beta, bug reports matter, and a stack trace
-            # without line numbers is most of a report thrown away for ~1 MB.
-            find "$d" -name '*.pdb' ! -name 'RimManager*.pdb' ! -name 'rimmanager*.pdb' -delete
-          done
+          # Half the published output is debug symbols, and 100 MB of it is native
+          # PDBs from SkiaSharp and HarfBuzz that could not help anyone here. Our
+          # OWN symbols stay: this is a beta, bug reports matter, and a stack trace
+          # without line numbers is most of a report thrown away for ~1 MB.
+          find "$app" -name '*.pdb' ! -name 'RimManager*.pdb' -delete
 
-          # Prove the GUI is in the GUI archive. If the collision ever returns, this
-          # is the line that catches it rather than a user.
+          # The archive must contain the application. Publishing cannot fail
+          # half-way silently on the runner and be caught by a user instead.
           test -f "$app/RimManager" || test -f "$app/RimManager.exe" \
-            || { echo "::error::The app archive has no RimManager executable."; exit 1; }
+            || { echo "::error::The archive has no RimManager executable."; exit 1; }
 
       - name: Archive
         env:
@@ -150,15 +137,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for name in "RimManager-$VERSION-${{ matrix.rid }}" "RimManager-cli-$VERSION-${{ matrix.rid }}"; do
-            if [ "${{ matrix.archive }}" = "zip" ]; then
-              (cd stage && zip -qr "../dist/$name.zip" "$name")
-            else
-              # The executable bit does not survive a zip, and macOS and Linux need it.
-              chmod +x "stage/$name/RimManager" "stage/$name/rimmanager" 2>/dev/null || true
-              tar -czf "dist/$name.tar.gz" -C stage "$name"
-            fi
-          done
+          name="RimManager-$VERSION-${{ matrix.rid }}"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd stage && zip -qr "../dist/$name.zip" "$name")
+          else
+            # The executable bit does not survive a zip, and macOS and Linux need it.
+            chmod +x "stage/$name/RimManager" 2>/dev/null || true
+            tar -czf "dist/$name.tar.gz" -C stage "$name"
+          fi
           ls -lh dist
 
       - uses: actions/upload-artifact@v4

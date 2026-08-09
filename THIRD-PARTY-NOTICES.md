@@ -23,7 +23,6 @@ which components are used and under which terms.
 | SQLitePCLRaw.lib.e_sqlite3 | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
 | SQLite | Public domain | https://www.sqlite.org |
 | Mono.Cecil | MIT | https://github.com/jbevain/cecil |
-| System.CommandLine | MIT | https://github.com/dotnet/command-line-api |
 
 ## Components used for development and testing only
 

@@ -89,7 +89,7 @@ public sealed class VersionStoryTests
         var notices = File.ReadAllText(Path.Combine(RepoPaths.Root, "THIRD-PARTY-NOTICES.md"));
 
         foreach (var shipped in new[]
-                 { "Avalonia", "CommunityToolkit.Mvvm", "Mono.Cecil", "Microsoft.Data.Sqlite", "System.CommandLine" })
+                 { "Avalonia", "CommunityToolkit.Mvvm", "Mono.Cecil", "Microsoft.Data.Sqlite" })
         {
             notices.Should().Contain(shipped, $"{shipped} ships in the build");
         }

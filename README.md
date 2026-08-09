@@ -56,9 +56,6 @@ Download the archive for the target platform from the
 | macOS | `osx-arm64` or `osx-x64` (`.tar.gz`) | Run `./RimManager`. Gatekeeper blocks unsigned binaries on first launch — permit it under **System Settings ▸ Privacy & Security**, or run `xattr -dr com.apple.quarantine RimManager`. |
 | Linux | `linux-x64` (`.tar.gz`) | Run `./RimManager`. |
 
-Archives named `RimManager-cli-*` contain the command-line binary, which exposes the same
-capabilities for scripted use.
-
 On first launch the RimWorld installation is located through Steam's library manifest. GOG
 and manual installations can be selected in Settings.
 
