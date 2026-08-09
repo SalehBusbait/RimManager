@@ -147,7 +147,7 @@ jobs:
           fi
           ls -lh dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.rid }}
           path: dist/*
@@ -192,7 +192,7 @@ jobs:
             -Odist packaging/windows/RimManager.iss
           ls -lh dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer-win-x64
           path: dist/*
