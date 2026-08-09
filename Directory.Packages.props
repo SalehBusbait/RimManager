@@ -33,7 +33,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
     <!-- FluentAssertions is pinned to 7.x on purpose: v8+ moved to a paid commercial license. -->
-    <PackageVersion Include="FluentAssertions" Version="7.2.0" />
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
   </ItemGroup>
 
 </Project>
