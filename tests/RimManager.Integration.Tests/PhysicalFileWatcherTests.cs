@@ -27,6 +27,17 @@ public sealed class PhysicalFileWatcherTests : IDisposable
     /// <summary>Waits for the debounce plus slack, so a coalesced callback has landed.</summary>
     private static void Settle() => Thread.Sleep(900);
 
+    /// <summary>
+    /// Gives the platform watcher a beat to start observing. On macOS the
+    /// FSEventStream is scheduled on a background run loop, and EnableRaisingEvents
+    /// returns before it is actually watching — a change in that first instant is
+    /// never seen. Found on CI: the one test that wrote immediately after
+    /// subscribing failed on macos-latest while its four siblings passed.
+    /// Irrelevant in production, where the watcher subscribes at startup and lives
+    /// for the session.
+    /// </summary>
+    private static void Arm() => Thread.Sleep(300);
+
     [Fact]
     public void An_in_place_write_is_noticed()
     {
@@ -35,9 +46,16 @@ public sealed class PhysicalFileWatcherTests : IDisposable
 
         var fired = 0;
         using var _ = _watcher.Watch(file, () => Interlocked.Increment(ref fired));
+        Arm();
 
-        File.WriteAllText(file, "<two/>");
-        Settle();
+        // A bounded retry rather than one shot: arming has no completion signal on
+        // any platform, so a slow CI machine can outlast a single allowance. A
+        // genuinely dead watcher still fails — three writes over ~3s see nothing.
+        for (var attempt = 0; attempt < 3 && Volatile.Read(ref fired) == 0; attempt++)
+        {
+            File.WriteAllText(file, $"<change n=\"{attempt}\"/>");
+            Settle();
+        }
 
         fired.Should().BeGreaterThan(0, "the game rewriting its mod list is the case this exists for");
     }
@@ -55,6 +73,7 @@ public sealed class PhysicalFileWatcherTests : IDisposable
 
         var fired = 0;
         using var _ = _watcher.Watch(file, () => Interlocked.Increment(ref fired));
+        Arm();
 
         for (var i = 0; i < 8; i++)
         {
@@ -81,6 +100,7 @@ public sealed class PhysicalFileWatcherTests : IDisposable
 
         var fired = 0;
         using var _ = _watcher.Watch(file, () => Interlocked.Increment(ref fired));
+        Arm();
 
         File.WriteAllText(temp, "<replacement/>");
         File.Replace(temp, file, destinationBackupFileName: null);
