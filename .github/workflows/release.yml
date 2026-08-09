@@ -62,7 +62,29 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet test RimManager.slnx -c Release
+      - run: dotnet test RimManager.slnx -c Release --logger "trx;LogFileName=results.trx" --results-directory TestResults
+
+      - name: Surface failing tests
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          NS = '{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+          for trx in glob.glob('TestResults/**/*.trx', recursive=True):
+              with open(trx, encoding='utf-8', errors='replace') as fh:
+                  text = fh.read()
+              # VSTest never writes a DTD; a file carrying one is not a TRX we trust.
+              if '<!DOCTYPE' in text[:2000]:
+                  continue
+              for r in ET.fromstring(text).iter(f'{NS}UnitTestResult'):
+                  if r.get('outcome') == 'Failed':
+                      name = r.get('testName', 'unknown')
+                      m = r.find(f'.//{NS}Message')
+                      msg = ' '.join(m.text.split())[:600] if m is not None and m.text else ''
+                      print(f'::error title={name}::{msg}')
+          PY
 
   build:
     name: ${{ matrix.rid }}
