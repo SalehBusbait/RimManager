@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Storage / platform">
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <!-- Transitively pinned: Microsoft.Data.Sqlite pulls the native SQLite bundle
          lib 2.1.11, which carries GHSA-2m69-gcr7-jv3q (high). 3.53.3 is the current
          patched native lib; the P/Invoke surface is stable across the bump. -->
