@@ -15,7 +15,7 @@
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.1" />
     <!-- Avalonia.Diagnostics has no 12.x release yet; re-add when it ships. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
   </ItemGroup>
 
   <ItemGroup Label="Storage / platform">
